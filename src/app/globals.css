@@ -1,0 +1,63 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+@layer base {
+  body {
+    @apply bg-aoe-dark text-gray-100 font-sans;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-aoe-card border border-aoe-border rounded-xl p-6;
+  }
+
+  .btn-primary {
+    @apply bg-aoe-accent hover:bg-yellow-500 text-aoe-dark font-semibold px-6 py-3 rounded-lg transition-all duration-200 hover:shadow-lg hover:shadow-aoe-accent/20;
+  }
+
+  .btn-secondary {
+    @apply border border-aoe-border hover:border-aoe-accent text-gray-300 hover:text-aoe-accent px-6 py-3 rounded-lg transition-all duration-200;
+  }
+
+  .input-field {
+    @apply bg-aoe-dark border border-aoe-border rounded-lg px-4 py-3 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-aoe-accent focus:ring-1 focus:ring-aoe-accent/50 transition-colors;
+  }
+
+  .nav-link {
+    @apply text-gray-400 hover:text-aoe-accent transition-colors duration-200 text-sm font-medium;
+  }
+
+  .nav-link-active {
+    @apply text-aoe-accent;
+  }
+
+  .section-title {
+    @apply text-2xl font-bold text-white mb-6;
+  }
+
+  .gold-gradient {
+    @apply bg-gradient-to-r from-aoe-accent to-yellow-400 bg-clip-text text-transparent;
+  }
+
+  .glow {
+    box-shadow: 0 0 20px rgba(200, 169, 100, 0.15);
+  }
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0f1419;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a3a4e;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3a4a5e;
+}
