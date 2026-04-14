@@ -6,6 +6,8 @@ import { generateTextResponse, streamTextResponse } from "@/lib/ai/runtime";
 import type { AiLocale, AiSurface } from "@/lib/ai/tools";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
+export const dynamic = "force-dynamic";
+
 const MAX_REQUESTS = 30;
 const WINDOW_MS = 60_000;
 
@@ -61,41 +63,36 @@ export async function POST(req: NextRequest) {
     }
 
     const encoder = new TextEncoder();
-    const eventStream = resolvedSurface === "agent"
-      ? streamTextResponse({
-        surface: "agent",
-        locale: resolvedLocale,
-        messages,
-        context,
-      })
-      : streamTextResponse({
-        surface: resolvedSurface,
-        locale: resolvedLocale,
-        messages,
-        context,
-      });
-
-    const body = new ReadableStream({
-      async start(controller) {
-        try {
-          for await (const event of eventStream) {
-            controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
-          }
-        } catch (error) {
-          controller.enqueue(encoder.encode(`${JSON.stringify({
-            type: "error",
-            error: error instanceof Error ? error.message : "Failed to process request",
-          })}\n`));
-        } finally {
-          controller.close();
-        }
-      },
+    const eventStream = streamTextResponse({
+      surface: resolvedSurface,
+      locale: resolvedLocale,
+      messages,
+      context,
     });
 
-    return new Response(body, {
+    const { readable, writable } = new TransformStream();
+    const writer = writable.getWriter();
+
+    (async () => {
+      try {
+        for await (const event of eventStream) {
+          await writer.write(encoder.encode(`${JSON.stringify(event)}\n`));
+        }
+      } catch (error) {
+        await writer.write(encoder.encode(`${JSON.stringify({
+          type: "error",
+          error: error instanceof Error ? error.message : "Failed to process request",
+        })}\n`));
+      } finally {
+        await writer.close();
+      }
+    })();
+
+    return new Response(readable, {
       headers: {
         "Content-Type": "application/x-ndjson; charset=utf-8",
         "Cache-Control": "no-cache, no-transform",
+        "X-Accel-Buffering": "no",
       },
     });
   } catch (error) {
