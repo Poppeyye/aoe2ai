@@ -1,10 +1,12 @@
 "use client";
 
-import { Heart, ExternalLink, MessageCircle } from "lucide-react";
-import { useDictionary } from "@/i18n/I18nProvider";
+import Link from "next/link";
+import { Heart, ExternalLink, MessageCircle, Shield } from "lucide-react";
+import { useDictionary, useLocale } from "@/i18n/I18nProvider";
 
 export default function Footer() {
   const dict = useDictionary();
+  const locale = useLocale();
   const d = dict.footer;
 
   return (
@@ -54,7 +56,7 @@ export default function Footer() {
             </div>
           </div>
 
-          <div className="text-center md:text-right">
+          <div className="text-center md:text-right space-y-2">
             <a
               href="https://ko-fi.com/popeeeeeeeye"
               target="_blank"
@@ -63,6 +65,15 @@ export default function Footer() {
             >
               {d.support}
             </a>
+            <div>
+              <Link
+                href={`/${locale}/privacy`}
+                className="inline-flex items-center gap-1 text-gray-600 hover:text-gray-400 transition-colors text-xs"
+              >
+                <Shield className="w-3 h-3" />
+                {locale === "es" ? "Privacidad" : "Privacy"}
+              </Link>
+            </div>
           </div>
         </div>
       </div>

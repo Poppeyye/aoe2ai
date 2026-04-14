@@ -7,3 +7,8 @@ out/
 next-env.d.ts
 .DS_Store
 client_secret_*.json
+*.db
+*.db-journal
+data/
+
+/src/generated/prisma

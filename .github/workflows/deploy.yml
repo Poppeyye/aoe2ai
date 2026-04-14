@@ -34,6 +34,7 @@ jobs:
           DISCORD_CLIENT_SECRET=${{ secrets.DISCORD_CLIENT_SECRET }}
           NEXT_PUBLIC_HAS_GOOGLE=1
           NEXT_PUBLIC_HAS_DISCORD=1
+          DATABASE_URL=file:./data/aoe2ai.db
           ENVEOF
 
       - name: Create deployment package
@@ -43,6 +44,7 @@ jobs:
             --exclude='.next' \
             --exclude='.git' \
             --exclude='client_secret_*' \
+            --exclude='data' \
             .
 
       - name: Setup SSH
@@ -69,8 +71,18 @@ jobs:
           cd ~/aoe2ai-build
           tar xzf /tmp/aoe2ai-deploy.tar.gz
 
+          echo "=== Creating persistent data volume ==="
+          docker volume create aoe2-data 2>/dev/null || true
+
           echo "=== Building Docker image ==="
           docker build -t aoe2-next:new .
+
+          echo "=== Running database migrations ==="
+          docker run --rm \
+            -v aoe2-data:/app/data \
+            -e DATABASE_URL=file:./data/aoe2ai.db \
+            --entrypoint sh aoe2-next:new \
+            -c "npx prisma migrate deploy --schema ./prisma/schema.prisma 2>&1 || echo 'Migration note: may need first run'"
 
           echo "=== Swapping containers ==="
           docker stop aoe2 || true
@@ -78,6 +90,7 @@ jobs:
           docker run -d --name aoe2 \
             --restart unless-stopped \
             --env-file ~/aoe2ai-build/.env \
+            -v aoe2-data:/app/data \
             -p 127.0.0.1:8000:8000 \
             aoe2-next:new
 

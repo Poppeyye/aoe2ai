@@ -11,6 +11,7 @@ const PAGES = [
   "/tournaments",
   "/live",
   "/learn",
+  "/privacy",
 ];
 
 const LOCALES = ["en", "es"];

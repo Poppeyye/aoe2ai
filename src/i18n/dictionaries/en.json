@@ -244,5 +244,22 @@
     "loading": "Loading...",
     "error": "Something went wrong",
     "vs": "vs"
+  },
+  "privacy": {
+    "title": "Privacy Policy",
+    "subtitle": "How we handle your data",
+    "last_updated": "Last updated: April 2026",
+    "what_we_collect": "What we collect",
+    "what_we_collect_text": "When you sign in with Google or Discord, we store your name, email address, and profile picture to manage your account. We do not collect any other personal data.",
+    "how_we_use": "How we use it",
+    "how_we_use_text": "Your data is used solely to identify your account and provide access to AI-powered features. We never sell, share, or use your data for advertising.",
+    "cookies": "Cookies",
+    "cookies_text": "We use only functional session cookies required for authentication. No tracking or advertising cookies are used. Cloudflare may collect anonymized performance metrics (Core Web Vitals) — EU visitor data is excluded from this.",
+    "data_storage": "Data storage",
+    "data_storage_text": "Your account data is stored in a secure database on our server. AI conversations are not stored — they are processed in real-time and discarded.",
+    "your_rights": "Your rights",
+    "your_rights_text": "You can request deletion of your account and all associated data at any time by contacting us via Discord. We will process your request within 30 days.",
+    "contact": "Contact",
+    "contact_text": "For any privacy-related questions, reach out via Discord."
   }
 }

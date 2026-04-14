@@ -244,5 +244,22 @@
     "loading": "Cargando...",
     "error": "Algo salió mal",
     "vs": "vs"
+  },
+  "privacy": {
+    "title": "Política de Privacidad",
+    "subtitle": "Cómo gestionamos tus datos",
+    "last_updated": "Última actualización: abril 2026",
+    "what_we_collect": "Qué datos recogemos",
+    "what_we_collect_text": "Cuando inicias sesión con Google o Discord, almacenamos tu nombre, dirección de email y foto de perfil para gestionar tu cuenta. No recogemos ningún otro dato personal.",
+    "how_we_use": "Cómo los usamos",
+    "how_we_use_text": "Tus datos se usan únicamente para identificar tu cuenta y darte acceso a las funciones de IA. Nunca vendemos, compartimos ni usamos tus datos con fines publicitarios.",
+    "cookies": "Cookies",
+    "cookies_text": "Usamos únicamente cookies de sesión funcionales necesarias para la autenticación. No usamos cookies de seguimiento ni publicitarias. Cloudflare puede recoger métricas de rendimiento anonimizadas (Core Web Vitals) — los datos de visitantes de la UE están excluidos.",
+    "data_storage": "Almacenamiento de datos",
+    "data_storage_text": "Los datos de tu cuenta se almacenan en una base de datos segura en nuestro servidor. Las conversaciones con la IA no se almacenan — se procesan en tiempo real y se descartan.",
+    "your_rights": "Tus derechos",
+    "your_rights_text": "Puedes solicitar la eliminación de tu cuenta y todos los datos asociados en cualquier momento contactándonos por Discord. Procesaremos tu solicitud en un plazo de 30 días.",
+    "contact": "Contacto",
+    "contact_text": "Para cualquier duda sobre privacidad, escríbenos por Discord."
   }
 }
