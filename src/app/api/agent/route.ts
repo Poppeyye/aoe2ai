@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { runAgent } from "@/lib/ai/agent";
 import { generateTextResponse, streamTextResponse } from "@/lib/ai/runtime";
 import type { AiLocale, AiSurface } from "@/lib/ai/tools";
@@ -9,6 +11,14 @@ const WINDOW_MS = 60_000;
 
 export async function POST(req: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 },
+      );
+    }
+
     const ip = getClientIp(req);
     const { allowed, remaining, resetAt } = checkRateLimit(`agent:${ip}`, MAX_REQUESTS, WINDOW_MS);
     if (!allowed) {

@@ -7,6 +7,7 @@ import SessionProvider from "@/components/auth/SessionProvider";
 import { I18nProvider } from "@/i18n/I18nProvider";
 import { getDictionary } from "@/i18n/getDictionary";
 import { locales, type Locale, isValidLocale } from "@/i18n/config";
+import { WebSiteJsonLd, WebApplicationJsonLd } from "@/components/seo/JsonLd";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -21,6 +22,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   if (!isValidLocale(params.locale)) return {};
   const dict = await getDictionary(params.locale);
+  const locale = params.locale;
 
   return {
     title: {
@@ -32,11 +34,18 @@ export async function generateMetadata({
     openGraph: {
       title: dict.meta.og_title,
       description: dict.meta.og_description,
-      url: "https://aoe2.ai",
+      url: `https://aoe2.ai/${locale}`,
       siteName: "AoE2.ai",
       type: "website",
+      locale: locale === "es" ? "es_ES" : "en_US",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: dict.meta.og_title,
+      description: dict.meta.og_description,
     },
     alternates: {
+      canonical: `https://aoe2.ai/${locale}`,
       languages: {
         en: "/en",
         es: "/es",
@@ -60,14 +69,22 @@ export default async function LocaleLayout({
   const dict = await getDictionary(locale);
 
   return (
-    <div className={`${inter.className} min-h-screen flex flex-col dark`}>
-      <SessionProvider>
-        <I18nProvider dict={dict} locale={locale}>
-          <Navbar />
-          <main className="flex-1">{children}</main>
-          <Footer />
-        </I18nProvider>
-      </SessionProvider>
-    </div>
+    <html lang={locale}>
+      <head>
+        <WebSiteJsonLd locale={locale} />
+        <WebApplicationJsonLd locale={locale} />
+      </head>
+      <body>
+        <div className={`${inter.className} min-h-screen flex flex-col dark`}>
+          <SessionProvider>
+            <I18nProvider dict={dict} locale={locale}>
+              <Navbar />
+              <main className="flex-1">{children}</main>
+              <Footer />
+            </I18nProvider>
+          </SessionProvider>
+        </div>
+      </body>
+    </html>
   );
 }

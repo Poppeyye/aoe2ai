@@ -1,0 +1,36 @@
+import type { Metadata } from "next";
+import { getDictionary } from "@/i18n/getDictionary";
+import { isValidLocale, type Locale } from "@/i18n/config";
+
+export async function buildPageMetadata(
+  locale: string,
+  section: string,
+  dictKey: string,
+): Promise<Metadata> {
+  if (!isValidLocale(locale)) return {};
+  const dict = await getDictionary(locale as Locale);
+  const d = (dict as Record<string, Record<string, string>>)[dictKey];
+  if (!d) return {};
+
+  return {
+    title: d.title,
+    description: d.subtitle,
+    openGraph: {
+      title: d.title,
+      description: d.subtitle,
+      url: `https://aoe2.ai/${locale}/${section}`,
+    },
+    twitter: {
+      card: "summary",
+      title: d.title,
+      description: d.subtitle,
+    },
+    alternates: {
+      canonical: `https://aoe2.ai/${locale}/${section}`,
+      languages: {
+        en: `/en/${section}`,
+        es: `/es/${section}`,
+      },
+    },
+  };
+}

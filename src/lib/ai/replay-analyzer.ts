@@ -19,6 +19,21 @@ interface ReplayExtraStats {
   economyActions: number;
 }
 
+const RAW_ID_PATTERN = /^(cell_|unknown_|\d+$)/i;
+
+function isValidGameName(name: string): boolean {
+  if (!name || name.length < 2) return false;
+  if (RAW_ID_PATTERN.test(name)) return false;
+  if (/^[0-9]+$/.test(name)) return false;
+  return true;
+}
+
+function filterEntries(entries: Record<string, number>): Record<string, number> {
+  return Object.fromEntries(
+    Object.entries(entries).filter(([name]) => isValidGameName(name)),
+  );
+}
+
 export function buildReplayAiContext(
   data: ReplayData,
   extra: Record<string, unknown>,
@@ -34,21 +49,44 @@ export function buildReplayAiContext(
       duration: data.duration,
       version: data.version,
     },
+    gameKnowledge: {
+      ageProgression: ["Dark Age", "Feudal Age", "Castle Age", "Imperial Age"],
+      timingBenchmarks: {
+        goodFeudalTime: "8:00-10:00",
+        fastCastle: "16:00-17:00",
+        fastImperial: "27:00-30:00",
+        earlyRush: "Before 10:00",
+        midGamePeak: "20:00-30:00",
+        lateGame: "After 35:00",
+      },
+      unitCounterGuide: {
+        "Knights": "Counter with Pikemen, Camels, or Monks",
+        "Archers/Crossbowmen": "Counter with Skirmishers, Siege, or Cavalry",
+        "Infantry": "Counter with Archers, Hand Cannoneers, or Scorpions",
+        "Siege": "Counter with Cavalry, Bombard Cannons, or Monks",
+        "Cavalry Archers": "Counter with Skirmishers, Camel Archers, or Eagle Warriors",
+      },
+      eapmBenchmarks: {
+        beginner: "< 30",
+        intermediate: "30-60",
+        advanced: "60-100",
+        expert: "> 100",
+      },
+    },
     players: data.players.map((player) => {
       const stats = playerStats[player.index];
-      const topUnits = stats
-        ? Object.entries(stats.unitsTrainedByType)
-          .sort(([, a], [, b]) => b - a)
-          .slice(0, 8)
-          .map(([name, count]) => ({ name, count }))
-        : [];
+      const cleanUnits = stats ? filterEntries(stats.unitsTrainedByType) : {};
+      const cleanBuildings = stats ? filterEntries(stats.buildingsPlaced) : {};
 
-      const topBuildings = stats
-        ? Object.entries(stats.buildingsPlaced)
-          .sort(([, a], [, b]) => b - a)
-          .slice(0, 6)
-          .map(([name, count]) => ({ name, count }))
-        : [];
+      const topUnits = Object.entries(cleanUnits)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 8)
+        .map(([name, count]) => ({ name, count }));
+
+      const topBuildings = Object.entries(cleanBuildings)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 6)
+        .map(([name, count]) => ({ name, count }));
 
       return {
         ...player,
@@ -78,7 +116,7 @@ export function buildReplayAiContext(
       .slice(0, 40),
     settings: Object.fromEntries(Object.entries(settings).filter(([, value]) => value && value !== "")),
     actionCounts: Object.fromEntries(
-      Object.entries(actionCounts)
+      Object.entries(filterEntries(actionCounts))
         .sort(([, a], [, b]) => b - a)
         .slice(0, 15),
     ),

@@ -1,26 +1,12 @@
 import type { Metadata } from "next";
-import { getDictionary } from "@/i18n/getDictionary";
-import { isValidLocale, type Locale } from "@/i18n/config";
+import { buildPageMetadata } from "@/lib/seo";
 
 export async function generateMetadata({
   params,
 }: {
   params: { locale: string };
 }): Promise<Metadata> {
-  if (!isValidLocale(params.locale)) return {};
-  const dict = await getDictionary(params.locale as Locale);
-  const d = dict.players;
-  return {
-    title: d.title,
-    description: d.subtitle,
-    openGraph: { title: d.title, description: d.subtitle },
-    alternates: {
-      languages: {
-        en: `/en/players`,
-        es: `/es/players`,
-      },
-    },
-  };
+  return buildPageMetadata(params.locale, "players", "players");
 }
 
 export default function Layout({ children }: { children: React.ReactNode }) {

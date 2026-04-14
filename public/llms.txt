@@ -1,0 +1,24 @@
+# AoE2.ai
+
+> AI-powered tools and assistant for Age of Empires II: Definitive Edition players.
+
+AoE2.ai is a free web portal that helps Age of Empires II players improve their game using artificial intelligence. It provides opponent scouting, replay analysis, an interactive tech tree, player leaderboards, tournament tracking, and an AI chat assistant — all available in English and Spanish.
+
+## Features
+
+- [AI Agent](https://aoe2.ai/en/agent): Chat with an AI assistant that has deep AoE2 knowledge — ask about civilizations, matchups, build orders, strategies, and more.
+- [Live Scout](https://aoe2.ai/en/live): Search any player and get a detailed scouting report with AI-powered tactical advice.
+- [Replay Analyzer](https://aoe2.ai/en/replay): Upload .aoe2record files for detailed match analysis with AI-generated chronicles.
+- [Tech Tree](https://aoe2.ai/en/techtree): Browse and compare civilization tech trees interactively.
+- [Players](https://aoe2.ai/en/players): Search players and view leaderboard rankings across all game modes.
+- [Tournaments](https://aoe2.ai/en/tournaments): Track ongoing and upcoming AoE2 tournaments from Liquipedia.
+- [Build Orders](https://aoe2.ai/en/learn): Learn popular build orders and strategies.
+
+## Languages
+
+Available in English (https://aoe2.ai/en) and Spanish (https://aoe2.ai/es).
+
+## Contact
+
+Built by popeeeeeeeye — https://www.aoe2insights.com/user/12154050/
+Discord: https://discordapp.com/users/777171410903629824

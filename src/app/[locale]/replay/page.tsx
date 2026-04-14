@@ -3,10 +3,12 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import {
   Upload, FileText, Loader2, AlertCircle, Swords, Clock,
-  MapPin, MessageSquare, BarChart3, Shield, Flame, Crown, Sparkles,
+  MapPin, MessageSquare, BarChart3, Shield, Flame, Crown, Sparkles, LogIn,
 } from "lucide-react";
+import Link from "next/link";
 import { cn, formatTime } from "@/lib/utils";
 import { useDictionary, useLocale } from "@/i18n/I18nProvider";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import AssistantPanel from "@/components/ai/AssistantPanel";
 import ToolActivityPanel from "@/components/ai/ToolActivityPanel";
 import MarkdownMessage from "@/components/ai/MarkdownMessage";
@@ -59,6 +61,7 @@ export default function ReplayPage() {
   const dict = useDictionary();
   const locale = useLocale();
   const d = dict.replay;
+  const { isAuthenticated, loginUrl } = useRequireAuth();
   const [dragging, setDragging] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
@@ -274,7 +277,20 @@ export default function ReplayPage() {
             <h2 className="section-title flex items-center gap-2">
               <FileText className="w-5 h-5 text-aoe-accent" /> {d.ai_chronicle}
             </h2>
-            {!aiRequested && result.aiEnabled ? (
+            {!isAuthenticated ? (
+              <div className="text-center py-6">
+                <LogIn className="w-8 h-8 text-aoe-accent mx-auto mb-3" />
+                <p className="text-sm text-gray-300 mb-4">
+                  {locale === "es"
+                    ? "Inicia sesión para generar crónicas con IA"
+                    : "Sign in to generate AI chronicles"}
+                </p>
+                <Link href={loginUrl} className="btn-primary inline-flex items-center gap-2 text-sm">
+                  <LogIn className="w-4 h-4" />
+                  {locale === "es" ? "Iniciar sesión" : "Sign in"}
+                </Link>
+              </div>
+            ) : !aiRequested && result.aiEnabled ? (
               <div className="text-center py-6">
                 <p className="text-sm text-gray-500 mb-4">
                   {locale === "es"

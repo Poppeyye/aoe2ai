@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  BookOpen,
   Globe,
   Radio,
   ScrollText,
@@ -17,47 +18,53 @@ export interface ToolActivity {
   status: "running" | "done";
 }
 
+const TOOL_META = {
+  lookup_player_profiles: {
+    icon: Users,
+    en: "Looking up player profiles",
+    es: "Buscando perfiles de jugadores",
+  },
+  scout_opponent: {
+    icon: Radio,
+    en: "Scouting opponent stats & habits",
+    es: "Analizando estadísticas del rival",
+  },
+  get_civilization_details: {
+    icon: Shield,
+    en: "Reading civilization tech tree",
+    es: "Consultando árbol tecnológico",
+  },
+  compare_civilizations: {
+    icon: Swords,
+    en: "Comparing civilizations head-to-head",
+    es: "Comparando civilizaciones cara a cara",
+  },
+  list_tournaments: {
+    icon: Trophy,
+    en: "Fetching tournament data",
+    es: "Obteniendo datos de torneos",
+  },
+  web_search: {
+    icon: Globe,
+    en: "Searching the web for latest info",
+    es: "Buscando información actualizada",
+  },
+  web_search_preview: {
+    icon: Globe,
+    en: "Searching the web for latest info",
+    es: "Buscando información actualizada",
+  },
+} as const;
+
 function getToolMeta(toolName: string, locale: "en" | "es") {
-  const map = {
-    lookup_player_profiles: {
-      icon: Users,
-      en: "Looking up players",
-      es: "Buscando jugadores",
-    },
-    scout_opponent: {
-      icon: Radio,
-      en: "Scouting opponent",
-      es: "Escouteando rival",
-    },
-    get_civilization_details: {
-      icon: Shield,
-      en: "Reading civilization data",
-      es: "Leyendo datos de civilización",
-    },
-    compare_civilizations: {
-      icon: Swords,
-      en: "Comparing civilizations",
-      es: "Comparando civilizaciones",
-    },
-    list_tournaments: {
-      icon: Trophy,
-      en: "Checking tournaments",
-      es: "Consultando torneos",
-    },
-    web_search: {
-      icon: Globe,
-      en: "Searching the web",
-      es: "Buscando en internet",
-    },
-  } as const;
+  const meta = TOOL_META[toolName as keyof typeof TOOL_META];
+  if (meta) return meta;
 
-  const fallback = {
+  return {
     icon: ScrollText,
-    en: toolName,
-    es: toolName,
+    en: "Processing request...",
+    es: "Procesando solicitud...",
   };
-
-  return map[toolName as keyof typeof map] || fallback;
 }
 
 export default function ToolActivityPanel({
@@ -106,11 +113,11 @@ export default function ToolActivityPanel({
                 <div className="text-xs text-gray-500">
                   {activity.status === "running"
                     ? locale === "es"
-                      ? "Consultando datos..."
-                      : "Consulting data..."
+                      ? "Obteniendo resultados..."
+                      : "Fetching results..."
                     : locale === "es"
-                      ? "Listo"
-                      : "Done"}
+                      ? "✓ Completado"
+                      : "✓ Complete"}
                 </div>
               </div>
               <div className="flex items-center gap-1">

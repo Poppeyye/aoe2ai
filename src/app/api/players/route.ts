@@ -12,6 +12,7 @@ import {
   type CompanionMatch,
 } from "@/lib/api/relic";
 import { LEADERBOARD_IDS, type LeaderboardType } from "@/types";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 function titleCase(s: string): string {
   return s.replace(/\b\w/g, (c) => c.toUpperCase());
@@ -19,6 +20,14 @@ function titleCase(s: string): string {
 
 export async function GET(req: NextRequest) {
   try {
+    const ip = getClientIp(req);
+    const { allowed, resetAt } = checkRateLimit(`players:${ip}`, 30, 60_000);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Please wait a moment." },
+        { status: 429, headers: { "Retry-After": String(Math.ceil((resetAt - Date.now()) / 1000)) } },
+      );
+    }
     const query = req.nextUrl.searchParams.get("q");
     const type = (req.nextUrl.searchParams.get("type") || "rm_1v1") as LeaderboardType;
     const profileId = req.nextUrl.searchParams.get("profileId");

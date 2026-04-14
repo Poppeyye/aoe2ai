@@ -3,10 +3,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Radio, Search, Loader2, Swords, Shield, MapPin, Trophy,
-  TrendingUp, TrendingDown, Clock, Crown, X, Flame, Target, Sparkles,
+  TrendingUp, TrendingDown, Clock, Crown, X, Flame, Target, Sparkles, LogIn,
 } from "lucide-react";
+import Link from "next/link";
 import { cn, formatTime } from "@/lib/utils";
 import { useDictionary, useLocale } from "@/i18n/I18nProvider";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import FavoriteButton from "@/components/ui/FavoriteButton";
 import KofiHint from "@/components/ui/KofiHint";
 import AssistantPanel from "@/components/ai/AssistantPanel";
@@ -83,6 +85,7 @@ export default function LivePage() {
   const dict = useDictionary();
   const locale = useLocale();
   const d = dict.live;
+  const { isAuthenticated, loginUrl } = useRequireAuth();
 
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<PlayerSuggestion[]>([]);
@@ -326,6 +329,8 @@ export default function LivePage() {
             aiEnabled={Boolean(scoutData.aiEnabled)}
             aiRequested={aiRequested}
             onRequestAi={() => setAiRequested(true)}
+            isAuthenticated={isAuthenticated}
+            loginUrl={loginUrl}
             locale={locale === "es" ? "es" : "en"}
             d={d}
           />
@@ -652,6 +657,8 @@ function AiAnalysis({
   aiEnabled,
   aiRequested,
   onRequestAi,
+  isAuthenticated,
+  loginUrl,
   locale,
   d,
 }: {
@@ -663,6 +670,8 @@ function AiAnalysis({
   aiEnabled: boolean;
   aiRequested: boolean;
   onRequestAi: () => void;
+  isAuthenticated: boolean;
+  loginUrl: string;
   locale: "en" | "es";
   d: Record<string, string>;
 }) {
@@ -672,7 +681,20 @@ function AiAnalysis({
         <Sparkles className="w-5 h-5 text-purple-400" />
         {d.ai_analysis}
       </h3>
-      {!aiRequested && aiEnabled ? (
+      {!isAuthenticated ? (
+        <div className="text-center py-6">
+          <LogIn className="w-8 h-8 text-aoe-accent mx-auto mb-3" />
+          <p className="text-sm text-gray-300 mb-4">
+            {locale === "es"
+              ? "Inicia sesión para utilizar el análisis de IA"
+              : "Sign in to use AI analysis"}
+          </p>
+          <Link href={loginUrl} className="btn-primary inline-flex items-center gap-2 text-sm">
+            <LogIn className="w-4 h-4" />
+            {locale === "es" ? "Iniciar sesión" : "Sign in"}
+          </Link>
+        </div>
+      ) : !aiRequested && aiEnabled ? (
         <div className="text-center py-6">
           <p className="text-sm text-gray-500 mb-4">
             {locale === "es"

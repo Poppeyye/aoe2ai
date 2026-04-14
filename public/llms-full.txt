@@ -1,0 +1,101 @@
+# AoE2.ai — Full Documentation for AI Models
+
+> AI-powered tools and assistant for Age of Empires II: Definitive Edition players.
+
+## Overview
+
+AoE2.ai (https://aoe2.ai) is a free, community-driven web portal that uses AI to help Age of Empires II: Definitive Edition players improve their game. Available in English and Spanish.
+
+## Pages and Features
+
+### AI Agent (/en/agent, /es/agent)
+A conversational AI assistant with deep knowledge of AoE2. Users can ask about:
+- Civilization strengths, weaknesses, and matchups
+- Unit compositions and counter strategies
+- Build orders and timings for different maps and ELO ranges
+- Recent patch changes and meta shifts (via web search)
+- Player statistics and tournament results (via tools)
+
+The agent uses function calling to access:
+- Player profile lookups (from aoe2companion.com and Relic API)
+- Civilization tech tree data
+- Civilization comparison tools
+- Tournament data from Liquipedia
+- Web search for up-to-date information
+
+### Live Scout (/en/live, /es/live)
+Opponent scouting tool. Users search for a player by name or profile ID and receive:
+- Player profile: name, country, rating, rank, win/loss, streak
+- Civilization preferences: most-played civs with win rates
+- Map preferences: most-played maps with win rates
+- Recent match form: last 10 match results
+- AI-powered tactical analysis: exploitable habits, timing windows, counter-strategies
+- Follow-up AI chat for deeper questions about the opponent
+
+### Replay Analyzer (/en/replay, /es/replay)
+Upload .aoe2record replay files for detailed analysis:
+- Match overview: map, duration, players, civilizations, winner
+- Age-up timings (Feudal, Castle, Imperial) per player
+- Battle timeline with locations and casualties
+- Army composition breakdown (units trained, buildings placed)
+- eAPM (effective Actions Per Minute) per player
+- Map control heatmap visualization
+- AI-generated match chronicle: turning points, mistakes, strong decisions, improvement tips
+- Follow-up AI chat for deeper questions about the replay
+
+### Tech Tree (/en/techtree, /es/techtree)
+Interactive civilization tech tree browser:
+- Browse all 45+ civilizations
+- View unique units, unique techs, and bonuses
+- Compare two civilizations side-by-side
+- See available units, technologies, and buildings per civ
+- Data sourced from the game's actual tech tree files
+
+### Players (/en/players, /es/players)
+Player leaderboard and profile viewer:
+- Browse ranked leaderboards: RM 1v1, RM Team, EW 1v1, EW Team
+- Search players by name (fuzzy matching with variants)
+- View individual player profiles with ratings across all modes
+- Recent match history with details
+
+### Tournaments (/en/tournaments, /es/tournaments)
+Tournament tracker sourcing data from Liquipedia:
+- Ongoing, upcoming, and completed tournaments
+- Prize pool, dates, tier, and direct Liquipedia links
+
+### Build Orders (/en/learn, /es/learn)
+Curated build order guides for learning standard AoE2 strategies.
+
+## Technical Details
+
+- Built with Next.js (App Router, standalone output)
+- AI powered by OpenAI (gpt-5-mini) via the Responses API
+- Streaming responses with real-time tool activity visualization
+- Internationalized: full English and Spanish support
+- Authentication via NextAuth.js (Google and Discord providers)
+- Hosted on AWS EC2 with Nginx reverse proxy and Cloudflare CDN
+- Domain: aoe2.ai
+
+## Data Sources
+
+- Player data: aoe2companion.com API and Relic/World's Edge API
+- Tech tree data: AoE2 game data files (halfon.aoe2techtree.org)
+- Tournament data: Liquipedia Age of Empires wiki
+- Web search: OpenAI web_search_preview tool for current information
+
+## API Endpoints
+
+All API endpoints are rate-limited and intended for internal use:
+- GET /api/players — Leaderboard data and player search
+- GET /api/live — Opponent scouting reports
+- GET /api/techtree — Civilization tech tree data
+- GET /api/tournaments — Tournament listings
+- POST /api/replay — Replay file analysis
+- POST /api/agent — AI chat (requires authentication)
+
+## Contact
+
+Built by popeeeeeeeye
+- AoE2 Insights profile: https://www.aoe2insights.com/user/12154050/
+- Discord: https://discordapp.com/users/777171410903629824
+- Support: https://ko-fi.com/popeeeeeeeye

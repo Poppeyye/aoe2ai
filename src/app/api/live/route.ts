@@ -2,9 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { hasOpenAIKey } from "@/lib/ai/openai-client";
 import { buildScoutReport } from "@/lib/scout/opponent";
 import type { AiLocale } from "@/lib/ai/tools";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function GET(req: NextRequest) {
   try {
+    const ip = getClientIp(req);
+    const { allowed, resetAt } = checkRateLimit(`live:${ip}`, 20, 60_000);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Please wait a moment." },
+        { status: 429, headers: { "Retry-After": String(Math.ceil((resetAt - Date.now()) / 1000)) } },
+      );
+    }
     const params = req.nextUrl.searchParams;
     const nameParam = params.get("name");
     const profileIdParam = params.get("profileId");

@@ -27,9 +27,45 @@ export interface AssistantStreamEvent {
 const MAX_TOOL_ROUNDS = 6;
 
 function getLocaleInstruction(locale: AiLocale) {
-  return locale === "es"
-    ? "IDIOMA: Responde SIEMPRE en español. Mantén términos AoE2 estándar en inglés cuando suenen natural (drush, uptime, fast castle, crossbow timing, flush, boom, push, etc.)."
-    : "LANGUAGE: Always respond in English. Keep standard AoE2 terminology natural.";
+  if (locale === "es") {
+    return `IDIOMA: Responde SIEMPRE en español.
+
+GLOSARIO AoE2 español — usa siempre estos términos traducidos:
+- Dark Age → Edad Oscura
+- Feudal Age → Edad Feudal
+- Castle Age → Edad de los Castillos
+- Imperial Age → Edad Imperial
+- Town Center → Centro Urbano
+- Barracks → Cuartel
+- Archery Range → Galería de Tiro
+- Stable → Establo
+- Siege Workshop → Taller de Asedio
+- Monastery → Monasterio
+- University → Universidad
+- Market → Mercado
+- Blacksmith → Herrería
+- Lumber Camp → Campamento Maderero
+- Mining Camp → Campamento Minero
+- Mill → Molino
+- Farm → Granja
+- House → Casa
+- Villager → Aldeano
+- Scout → Explorador
+- Knight → Caballero
+- Archer → Arquero
+- Crossbowman → Ballestero
+- Pikeman → Piquero
+- Skirmisher → Escaramuzador
+- Mangonel → Mangonela
+- Trebuchet → Trabuco
+- Ram → Ariete
+- Monk → Monje
+
+Mantén en inglés los términos de la comunidad que no se traducen: drush, flush, fast castle, boom, push, timing, rush, gg, glhf, wp, elo, smush, douche, trush, FC, uptime, pocket, flank.
+
+DATOS EN INGLÉS: Los campos JSON del contexto (llaves y algunos valores) están en inglés. Transforma TODO a español natural en tu respuesta — nunca muestres llaves JSON crudas ni nombres de campo internos al usuario.`;
+  }
+  return "LANGUAGE: Always respond in English. Keep standard AoE2 terminology natural.";
 }
 
 function getFormattingRules() {
@@ -47,18 +83,22 @@ function getFormattingRules() {
 - Avoid repeating yourself. Be direct, precise, and confident.`;
 }
 
-function getSurfaceInstruction(surface: AiSurface) {
+function getSurfaceInstruction(surface: AiSurface, locale?: AiLocale) {
   switch (surface) {
     case "live":
       return `You are an elite AoE2 ranked coach analyzing an opponent's profile before a match.
 Treat the provided scout context as ground truth for all player-specific claims.
 Focus on: exploitable habits, civ tendencies, timing windows, map-specific weaknesses, and a concrete counter-strategy.
-Be practical and direct — the user needs actionable advice they can apply in the next 30 seconds before queueing.`;
+Be practical and direct — the user needs actionable advice they can apply in the next 30 seconds before queueing.
+${locale === "es" ? "IMPORTANTE: El contexto contiene datos con claves en inglés (civStats, mapStats, recentMatches, etc.). Traduce todo a español natural. Usa los nombres de civilizaciones tal como aparecen en el juego en español (ej: Francos, Mayas, Bizantinos, Mongoles, etc.)." : ""}`;
     case "replay":
       return `You are an expert AoE2 replay analyst and caster.
 Treat the provided replay context as ground truth for match facts, timestamps, compositions, and outcomes.
 Write like a sports analyst reviewing tape: explain WHY moments mattered, highlight decision-making errors and brilliant plays, and suggest concrete improvements.
-Never invent events not supported by the replay context.`;
+Never invent events not supported by the replay context.
+Raw data may contain internal game identifiers (e.g. unit/building codes, cell references, numeric IDs). NEVER output raw codes, internal identifiers, or cell references. Only reference known AoE2 concepts by their proper names.
+Use standard AoE2 terminology and reference known benchmarks for timing analysis (e.g. good Feudal ~8:00-10:00, fast Castle ~16:00-17:00).
+${locale === "es" ? "IMPORTANTE: El JSON contiene campos con claves en inglés (players, actions, events, chat, etc.). Traduce todo a español natural. Usa nombres de unidades, edificios y edades en español según el glosario proporcionado." : ""}`;
     case "agent":
     default:
       return `You are the definitive AoE2 assistant — the best source of Age of Empires II: Definitive Edition knowledge.
@@ -72,24 +112,30 @@ Adapt every recommendation to the specific map, civ, ELO range, and game phase w
 
 function buildInstructions(surface: AiSurface, locale: AiLocale) {
   return [
-    getSurfaceInstruction(surface),
+    getSurfaceInstruction(surface, locale),
     getLocaleInstruction(locale),
     getFormattingRules(),
   ].join("\n\n");
 }
 
-function buildInitialInput(messages: ChatMessage[], context?: unknown) {
+function buildInitialInput(messages: ChatMessage[], context?: unknown, locale?: AiLocale) {
   const input: Array<{ role: "user" | "assistant"; content: string }> = [];
 
   if (context && typeof context === "object" && Object.keys(context as Record<string, unknown>).length > 0) {
+    const contextNote = locale === "es"
+      ? "Contexto estructurado de la página actual (las claves JSON están en inglés — transforma todo a español natural en tu respuesta, nunca muestres nombres de campo internos):"
+      : "Authoritative structured context for this conversation:";
+
     input.push({
       role: "user",
       content: [
-        "Authoritative structured context for this conversation:",
+        contextNote,
         "```json",
         JSON.stringify(context, null, 2),
         "```",
-        "Use it whenever the user asks about the current page or current analysis.",
+        locale === "es"
+          ? "Usa este contexto siempre que el usuario pregunte sobre la página actual o el análisis en curso."
+          : "Use it whenever the user asks about the current page or current analysis.",
       ].join("\n"),
     });
   }
@@ -138,7 +184,7 @@ function buildRequestConfig(
   return {
     model: model || DEFAULT_AI_MODEL,
     instructions: buildInstructions(surface, locale),
-    input: buildInitialInput(messages, context),
+    input: buildInitialInput(messages, context, locale),
     tools,
   };
 }

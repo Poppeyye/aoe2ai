@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Swords, Loader2 } from "lucide-react";
+import { Send, Swords, Loader2, LogIn } from "lucide-react";
+import Link from "next/link";
 import { cn, generateId } from "@/lib/utils";
 import { useDictionary, useLocale } from "@/i18n/I18nProvider";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import ToolActivityPanel, { type ToolActivity } from "@/components/ai/ToolActivityPanel";
 import { readAssistantStream } from "@/components/ai/chat-stream";
 import MarkdownMessage from "@/components/ai/MarkdownMessage";
@@ -19,11 +21,12 @@ export default function AgentPage() {
   const dict = useDictionary();
   const locale = useLocale();
   const d = dict.agent;
+  const { isAuthenticated, isLoading: authLoading, loginUrl } = useRequireAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [activities, setActivities] = useState<ToolActivity[]>([]);
-  const messagesEnd = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const suggestions = locale === "es"
     ? [
@@ -42,7 +45,8 @@ export default function AgentPage() {
     ];
 
   useEffect(() => {
-    messagesEnd.current?.scrollIntoView({ behavior: "smooth" });
+    const el = scrollContainerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
   async function sendMessage(text?: string) {
@@ -131,6 +135,36 @@ export default function AgentPage() {
     }
   }
 
+  if (authLoading) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-aoe-accent border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-8 flex flex-col items-center justify-center min-h-[60vh]">
+        <Swords className="w-12 h-12 text-aoe-accent mb-4" />
+        <h1 className="text-2xl font-medieval font-bold gold-gradient mb-2">{d.title}</h1>
+        <p className="text-gray-400 mb-6">{d.subtitle}</p>
+        <div className="card max-w-sm w-full text-center p-6">
+          <LogIn className="w-8 h-8 text-aoe-accent mx-auto mb-3" />
+          <p className="text-sm text-gray-300 mb-4">
+            {locale === "es"
+              ? "Inicia sesión para chatear con el asistente de IA"
+              : "Sign in to chat with the AI assistant"}
+          </p>
+          <Link href={loginUrl} className="btn-primary inline-flex items-center gap-2 text-sm">
+            <LogIn className="w-4 h-4" />
+            {locale === "es" ? "Iniciar sesión" : "Sign in"}
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 flex flex-col h-[calc(100vh-8rem)]">
       <div className="text-center mb-8">
@@ -141,7 +175,7 @@ export default function AgentPage() {
         <p className="text-gray-400">{d.subtitle}</p>
       </div>
 
-      <div className="flex-1 overflow-y-auto space-y-4 mb-4">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto space-y-4 mb-4">
         <ToolActivityPanel activities={activities} locale={locale === "es" ? "es" : "en"} />
 
         {messages.length === 0 && (
@@ -183,7 +217,6 @@ export default function AgentPage() {
           </div>
         )}
 
-        <div ref={messagesEnd} />
       </div>
 
       <div className="flex gap-3">

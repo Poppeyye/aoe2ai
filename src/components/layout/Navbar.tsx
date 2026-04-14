@@ -107,7 +107,7 @@ export default function Navbar() {
                 )}
               </div>
             ) : (
-              <Link href={`/${locale}/login`} className="btn-secondary text-sm !px-4 !py-2">
+              <Link href={`/${locale}/login?callbackUrl=${encodeURIComponent(pathname)}`} className="btn-secondary text-sm !px-4 !py-2">
                 {dict.nav.login}
               </Link>
             )}
@@ -152,7 +152,7 @@ export default function Navbar() {
                   </button>
                 ) : (
                   <Link
-                    href={`/${locale}/login`}
+                    href={`/${locale}/login?callbackUrl=${encodeURIComponent(pathname)}`}
                     onClick={() => setOpen(false)}
                     className="btn-secondary text-sm"
                   >

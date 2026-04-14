@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2, Send, Sparkles } from "lucide-react";
+import { Loader2, Send, Sparkles, LogIn } from "lucide-react";
+import Link from "next/link";
 import { cn, generateId } from "@/lib/utils";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import ToolActivityPanel, { type ToolActivity } from "@/components/ai/ToolActivityPanel";
 import { readAssistantStream } from "@/components/ai/chat-stream";
 import MarkdownMessage from "@/components/ai/MarkdownMessage";
@@ -35,14 +37,16 @@ export default function AssistantPanel({
   emptyHint,
   suggestions = [],
 }: AssistantPanelProps) {
+  const { isAuthenticated, loginUrl } = useRequireAuth();
   const [messages, setMessages] = useState<PanelMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [activities, setActivities] = useState<ToolActivity[]>([]);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const el = scrollContainerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [messages, loading]);
 
   async function sendMessage(prefilled?: string) {
@@ -138,6 +142,29 @@ export default function AssistantPanel({
     }
   }
 
+  if (!isAuthenticated) {
+    return (
+      <div className="card">
+        <h3 className="section-title flex items-center gap-2">
+          <Sparkles className="w-5 h-5 text-purple-400" />
+          {title}
+        </h3>
+        <div className="rounded-lg border border-aoe-border/60 bg-aoe-dark/40 p-6 text-center">
+          <LogIn className="w-8 h-8 text-aoe-accent mx-auto mb-3" />
+          <p className="text-sm text-gray-300 mb-4">
+            {locale === "es"
+              ? "Inicia sesión para utilizar las herramientas de IA"
+              : "Sign in to use AI features"}
+          </p>
+          <Link href={loginUrl} className="btn-primary inline-flex items-center gap-2 text-sm">
+            <LogIn className="w-4 h-4" />
+            {locale === "es" ? "Iniciar sesión" : "Sign in"}
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="card">
       <h3 className="section-title flex items-center gap-2">
@@ -167,7 +194,7 @@ export default function AssistantPanel({
           </div>
         )}
 
-        <div className="space-y-3 max-h-[420px] overflow-y-auto">
+        <div ref={scrollContainerRef} className="space-y-3 max-h-[420px] overflow-y-auto">
           {messages.map((message) => (
             <div
               key={message.id}
@@ -191,8 +218,6 @@ export default function AssistantPanel({
               <Loader2 className="w-5 h-5 animate-spin text-aoe-accent" />
             </div>
           )}
-
-          <div ref={bottomRef} />
         </div>
 
         <div className="flex gap-3">

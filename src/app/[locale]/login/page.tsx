@@ -3,6 +3,7 @@
 import { signIn, signOut, useSession } from "next-auth/react";
 import { Swords, LogOut } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useDictionary, useLocale } from "@/i18n/I18nProvider";
 
 function GoogleIcon() {
@@ -29,6 +30,9 @@ export default function LoginPage() {
   const locale = useLocale();
   const d = dict.login;
   const { data: session, status } = useSession();
+  const searchParams = useSearchParams();
+
+  const callbackUrl = searchParams.get("callbackUrl") || `/${locale}`;
 
   const hasGoogle = true;
   const hasDiscord = true;
@@ -95,7 +99,7 @@ export default function LoginPage() {
           <div className="space-y-3">
             {hasGoogle && (
               <button
-                onClick={() => signIn("google", { callbackUrl: `/${locale}` })}
+                onClick={() => signIn("google", { callbackUrl })}
                 className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-lg border border-aoe-border bg-white text-gray-800 font-medium hover:bg-gray-100 transition-colors"
               >
                 <GoogleIcon />
@@ -104,7 +108,7 @@ export default function LoginPage() {
             )}
             {hasDiscord && (
               <button
-                onClick={() => signIn("discord", { callbackUrl: `/${locale}` })}
+                onClick={() => signIn("discord", { callbackUrl })}
                 className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-lg border border-aoe-border bg-[#5865F2] text-white font-medium hover:bg-[#4752C4] transition-colors"
               >
                 <DiscordIcon />
