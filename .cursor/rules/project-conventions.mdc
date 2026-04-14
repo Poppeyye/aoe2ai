@@ -1,0 +1,38 @@
+---
+description: Core project conventions for aoe2ai
+alwaysApply: true
+---
+
+# AoE2.ai Project Conventions
+
+## Stack
+- Next.js 15 App Router with `output: "standalone"`
+- TypeScript strict mode
+- Tailwind CSS for styling
+- OpenAI Responses API for AI features
+- SQLite + Prisma 7 for persistence
+- NextAuth.js for authentication
+
+## Localization
+- All user-facing pages live under `src/app/[locale]/` (`en`/`es`)
+- Translations in `src/i18n/dictionaries/{en,es}.json` — keep both in sync
+- AI prompts are locale-aware via `runtime.ts` — update `getLocaleInstruction()` when adding AoE2 terminology
+- Metadata uses `buildPageMetadata()` from `src/lib/seo.ts`
+
+## API Routes
+- All API routes must include rate limiting from `src/lib/rate-limit.ts`
+- AI routes require authentication via `getServerSession(authOptions)`
+- Streaming routes must use `TransformStream` (not `ReadableStream.start()`) and set `X-Accel-Buffering: no`
+
+## Components
+- Client components use `"use client"` directive
+- AI features gated with `useRequireAuth()` hook
+- Use `lucide-react` for icons
+
+## Database
+- Schema in `prisma/schema.prisma`; when adding tables, also add the `CREATE TABLE` SQL to `ensureDatabase()` in `src/lib/prisma.ts`
+- Import client from `@/lib/prisma`, never instantiate `PrismaClient` directly
+
+## Environment
+- Never commit `.env` — secrets go in GitHub Secrets for production
+- Public env vars prefixed with `NEXT_PUBLIC_`

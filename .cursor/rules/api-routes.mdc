@@ -1,0 +1,26 @@
+---
+description: Conventions for API route handlers
+globs: src/app/api/**/*.ts
+alwaysApply: false
+---
+
+# API Route Conventions
+
+## Structure
+- Export named functions: `GET`, `POST` (not default exports)
+- Add `export const dynamic = "force-dynamic"` for routes that must not be cached
+
+## Security
+- Rate limit every route using `rateLimit()` and `getClientIp()` from `src/lib/rate-limit.ts`
+- AI routes: check `getServerSession(authOptions)`, return 401 if unauthenticated
+- Never expose secrets or internal error details in responses
+
+## Streaming (AI routes)
+- Use `TransformStream` with `await writer.write()` for NDJSON streaming
+- Set headers: `Content-Type: text/plain; charset=utf-8`, `X-Accel-Buffering: no`, `Cache-Control: no-cache`
+- Protocol: `{"type":"text","content":"..."}`, `{"type":"tool_start",...}`, `{"type":"tool_end",...}`, `{"type":"done"}`
+
+## Error Responses
+```typescript
+return NextResponse.json({ error: "Description" }, { status: 4xx });
+```

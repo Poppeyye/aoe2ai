@@ -1,0 +1,26 @@
+---
+description: Conventions for Next.js pages and layouts
+globs: src/app/**/*.tsx
+alwaysApply: false
+---
+
+# Page & Layout Conventions
+
+## Page Structure
+- Pages under `src/app/[locale]/` — never create pages at root `src/app/`
+- Each section has `page.tsx` (content) and `layout.tsx` (metadata via `buildPageMetadata`)
+- `generateStaticParams` must return `[{ locale: "en" }, { locale: "es" }]`
+
+## Metadata
+- Use `buildPageMetadata()` from `src/lib/seo.ts` in `layout.tsx` files
+- Always provide both `en` and `es` translations in dictionaries before referencing them
+
+## Client Pages
+- Use `"use client"` for interactive pages
+- Access locale via `useParams()` or `useLocale()` from i18n provider
+- Gate AI features behind `useRequireAuth()`
+- Avoid `window.scrollTo` — keep scroll management within container refs
+
+## Error Handling
+- Each locale group has `error.tsx` and `not-found.tsx`
+- API failures should show user-friendly messages, not raw errors

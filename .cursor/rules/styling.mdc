@@ -1,0 +1,28 @@
+---
+description: Styling and theme conventions
+globs: "**/*.{tsx,css}"
+alwaysApply: false
+---
+
+# Styling Conventions
+
+## Theme
+- Dark theme with AoE2-inspired palette: golds (`amber-500`), deep blues/grays (`slate-800/900`), warm accents
+- Use Tailwind utility classes — avoid inline styles
+- Glassmorphism effects for panels: `bg-slate-800/60 backdrop-blur-sm border border-amber-900/20 rounded-xl`
+
+## Typography
+- Headings: `font-bold text-amber-100`
+- Body text: `text-slate-300`
+- Muted/secondary: `text-slate-400`
+- Links/interactive: `text-amber-400 hover:text-amber-300`
+
+## Components
+- Buttons: `bg-amber-600 hover:bg-amber-500 text-white rounded-lg px-4 py-2 transition-colors`
+- Cards: `bg-slate-800/80 border border-slate-700 rounded-xl p-4`
+- Inputs: `bg-slate-900 border border-slate-700 rounded-lg`
+
+## Animations
+- Tool activity: AoE-themed pulse animations (defined in `globals.css`)
+- Transitions: Use `transition-colors` or `transition-all duration-200`
+- Avoid excessive motion — keep it professional
