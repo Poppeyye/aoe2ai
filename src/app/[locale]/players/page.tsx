@@ -30,9 +30,6 @@ interface PlayerProfile {
     profileId: number;
     name: string;
     country: string;
-    level: number;
-    xp: number;
-    region: number;
   };
   ratings: Record<string, {
     rating: number; rank: number; wins: number; losses: number;
@@ -64,11 +61,6 @@ interface MatchEntry {
 }
 
 type Tab = "rm_1v1" | "rm_team" | "ew_1v1" | "ew_team";
-
-const REGION_NAMES: Record<number, string> = {
-  0: "Europe", 1: "Middle East", 2: "Asia", 3: "North America",
-  4: "South America", 5: "Oceania", 6: "Africa", 7: "Unknown",
-};
 
 export default function PlayersPage() {
   const dict = useDictionary();
@@ -530,11 +522,6 @@ function PlayerProfileView({
                   <MapPin className="w-4 h-4" /> {p.country.toUpperCase()}
                 </span>
               )}
-              {p.region !== undefined && (
-                <span>{REGION_NAMES[p.region] || "Unknown Region"}</span>
-              )}
-              <span>{d.level} {p.level}</span>
-              <span>{p.xp.toLocaleString()} XP</span>
             </div>
           </div>
           <div className="text-right">

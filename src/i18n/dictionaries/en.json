@@ -19,7 +19,10 @@
     "passion": "A passion project built with",
     "for_community": "for the AoE2 community.",
     "no_ads": "No ads, no data selling — just tools that help you play better.",
-    "support": "Support this project on Ko-fi"
+    "support": "Support this project on Ko-fi",
+    "built_by": "Built by",
+    "with_love": "with love for the community",
+    "contact": "Contact"
   },
   "home": {
     "hero_pre": "Your",

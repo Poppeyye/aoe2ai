@@ -81,7 +81,8 @@ function parseTournamentsFromWikitext(wikitext: string): Tournament[] {
     if (current && prizeMatch) current.prizePool = prizeMatch[1].trim().replace(/[{}[\]]/g, "");
     if (current && tierMatch) current.tier = tierMatch[1].trim();
     if (current && linkMatch) {
-      const page = linkMatch[1].trim().replace(/\s/g, "_");
+      let page = linkMatch[1].trim().replace(/\s/g, "_");
+      page = page.replace(/\/\d+$/, "");
       current.liquipediaUrl = `https://liquipedia.net/ageofempires/${page}`;
     }
   }

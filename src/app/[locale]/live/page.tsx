@@ -8,6 +8,7 @@ import {
 import { cn, formatTime } from "@/lib/utils";
 import { useDictionary, useLocale } from "@/i18n/I18nProvider";
 import FavoriteButton from "@/components/ui/FavoriteButton";
+import KofiHint from "@/components/ui/KofiHint";
 import AssistantPanel from "@/components/ai/AssistantPanel";
 import ToolActivityPanel from "@/components/ai/ToolActivityPanel";
 import MarkdownMessage from "@/components/ai/MarkdownMessage";
@@ -165,6 +166,12 @@ export default function LivePage() {
     });
   }
 
+  const [aiRequested, setAiRequested] = useState(false);
+
+  useEffect(() => {
+    setAiRequested(false);
+  }, [scoutData?.profile?.profileId]);
+
   const streamedAnalysis = useStreamedAssistant({
     surface: "live",
     locale: locale === "es" ? "es" : "en",
@@ -172,8 +179,8 @@ export default function LivePage() {
     prompt: locale === "es"
       ? "Analiza a este rival de ranked 1v1 y dame 4 consejos tácticos concretos para explotarlo."
       : "Analyze this ranked 1v1 opponent and give me 4 concrete tactical tips to exploit their tendencies.",
-    enabled: Boolean(scoutData?.aiEnabled && scoutData),
-    resetKey: scoutData ? `${scoutData.profile.profileId}-${locale}` : `empty-${locale}`,
+    enabled: Boolean(aiRequested && scoutData?.aiEnabled && scoutData),
+    resetKey: scoutData ? `${scoutData.profile.profileId}-${locale}-${aiRequested}` : `empty-${locale}`,
   });
 
   return (
@@ -311,12 +318,14 @@ export default function LivePage() {
 
           <CivRecommendations recommendations={scoutData.civRecommendations} d={d} />
           <AiAnalysis
-            analysis={scoutData.aiEnabled ? streamedAnalysis.text : scoutData.aiAnalysis}
-            loading={streamedAnalysis.loading}
-            error={streamedAnalysis.error}
-            activities={streamedAnalysis.activities}
+            analysis={aiRequested ? (scoutData.aiEnabled ? streamedAnalysis.text : scoutData.aiAnalysis) : null}
+            loading={aiRequested ? streamedAnalysis.loading : false}
+            error={aiRequested ? streamedAnalysis.error : null}
+            activities={aiRequested ? streamedAnalysis.activities : []}
             onRetry={() => void streamedAnalysis.retry()}
             aiEnabled={Boolean(scoutData.aiEnabled)}
+            aiRequested={aiRequested}
+            onRequestAi={() => setAiRequested(true)}
             locale={locale === "es" ? "es" : "en"}
             d={d}
           />
@@ -346,6 +355,7 @@ export default function LivePage() {
             d={d}
             formatDate={formatDate}
           />
+          <KofiHint />
         </div>
       )}
 
@@ -640,6 +650,8 @@ function AiAnalysis({
   activities,
   onRetry,
   aiEnabled,
+  aiRequested,
+  onRequestAi,
   locale,
   d,
 }: {
@@ -649,6 +661,8 @@ function AiAnalysis({
   activities: import("@/components/ai/ToolActivityPanel").ToolActivity[];
   onRetry: () => void;
   aiEnabled: boolean;
+  aiRequested: boolean;
+  onRequestAi: () => void;
   locale: "en" | "es";
   d: Record<string, string>;
 }) {
@@ -658,39 +672,55 @@ function AiAnalysis({
         <Sparkles className="w-5 h-5 text-purple-400" />
         {d.ai_analysis}
       </h3>
-      <div className="space-y-4">
-        <ToolActivityPanel activities={activities} locale={locale} />
-        {loading && !analysis && (
-          <div className="flex items-start gap-3 rounded-lg bg-aoe-dark/50 border border-aoe-border/50 px-4 py-3">
-            <Loader2 className="w-5 h-5 animate-spin text-aoe-accent mt-0.5 shrink-0" />
-            <p className="text-sm text-gray-400">
-              {locale === "es" ? "La IA está analizando el scout en tiempo real..." : "The AI is analyzing the scout in real time..."}
-            </p>
-          </div>
-        )}
-        {error && (
-          <div className="flex items-start justify-between gap-3 rounded-lg bg-red-500/5 border border-red-500/20 px-4 py-3">
-            <p className="text-sm text-red-300">{error}</p>
-            <button onClick={onRetry} className="text-xs text-red-200 hover:text-white transition-colors">
-              {locale === "es" ? "Reintentar" : "Retry"}
-            </button>
-          </div>
-        )}
-      </div>
-      {analysis ? (
-        <MarkdownMessage content={analysis} />
-      ) : !aiEnabled ? (
-        <div className="flex items-start gap-3 rounded-lg bg-aoe-dark/50 border border-aoe-border/50 px-4 py-3">
-          <Sparkles className="w-5 h-5 text-gray-600 mt-0.5 shrink-0" />
-          <p className="text-sm text-gray-500">{d.ai_unavailable}</p>
+      {!aiRequested && aiEnabled ? (
+        <div className="text-center py-6">
+          <p className="text-sm text-gray-500 mb-4">
+            {locale === "es"
+              ? "Lanza el análisis de IA para obtener consejos tácticos personalizados."
+              : "Run the AI analysis to get personalized tactical advice."}
+          </p>
+          <button onClick={onRequestAi} className="btn-primary inline-flex items-center gap-2">
+            <Sparkles className="w-4 h-4" />
+            {locale === "es" ? "Analizar con IA" : "Analyze with AI"}
+          </button>
         </div>
-      ) : null}
-      {loading && analysis ? (
-        <div className="mt-3 flex items-center gap-2 text-xs text-gray-500">
-          <Loader2 className="w-3.5 h-3.5 animate-spin text-aoe-accent" />
-          {locale === "es" ? "Generando más detalles..." : "Generating more detail..."}
-        </div>
-      ) : null}
+      ) : (
+        <>
+          <div className="space-y-4">
+            <ToolActivityPanel activities={activities} locale={locale} />
+            {loading && !analysis && (
+              <div className="flex items-start gap-3 rounded-lg bg-aoe-dark/50 border border-aoe-border/50 px-4 py-3">
+                <Loader2 className="w-5 h-5 animate-spin text-aoe-accent mt-0.5 shrink-0" />
+                <p className="text-sm text-gray-400">
+                  {locale === "es" ? "La IA está analizando el scout en tiempo real..." : "The AI is analyzing the scout in real time..."}
+                </p>
+              </div>
+            )}
+            {error && (
+              <div className="flex items-start justify-between gap-3 rounded-lg bg-red-500/5 border border-red-500/20 px-4 py-3">
+                <p className="text-sm text-red-300">{error}</p>
+                <button onClick={onRetry} className="text-xs text-red-200 hover:text-white transition-colors">
+                  {locale === "es" ? "Reintentar" : "Retry"}
+                </button>
+              </div>
+            )}
+          </div>
+          {analysis ? (
+            <MarkdownMessage content={analysis} />
+          ) : !aiEnabled ? (
+            <div className="flex items-start gap-3 rounded-lg bg-aoe-dark/50 border border-aoe-border/50 px-4 py-3">
+              <Sparkles className="w-5 h-5 text-gray-600 mt-0.5 shrink-0" />
+              <p className="text-sm text-gray-500">{d.ai_unavailable}</p>
+            </div>
+          ) : null}
+          {loading && analysis ? (
+            <div className="mt-3 flex items-center gap-2 text-xs text-gray-500">
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-aoe-accent" />
+              {locale === "es" ? "Generando más detalles..." : "Generating more detail..."}
+            </div>
+          ) : null}
+        </>
+      )}
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { useDictionary, useLocale } from "@/i18n/I18nProvider";
 import ToolActivityPanel, { type ToolActivity } from "@/components/ai/ToolActivityPanel";
 import { readAssistantStream } from "@/components/ai/chat-stream";
 import MarkdownMessage from "@/components/ai/MarkdownMessage";
+import KofiHint from "@/components/ui/KofiHint";
 
 interface Message {
   id: string;
@@ -203,6 +204,7 @@ export default function AgentPage() {
           <Send className="w-5 h-5" />
         </button>
       </div>
+      {messages.length > 0 && <div className="mt-3"><KofiHint /></div>}
     </div>
   );
 }

@@ -5,18 +5,21 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
-import { Menu, X, Swords, LogOut, User } from "lucide-react";
+import {
+  Menu, X, Swords, LogOut, User, Upload, BookOpen, Users,
+  Trophy, Radio, GraduationCap,
+} from "lucide-react";
 import { useDictionary, useLocale } from "@/i18n/I18nProvider";
 import LanguageSwitcher from "./LanguageSwitcher";
 
 const NAV_KEYS = [
-  { path: "/agent", key: "agent" as const },
-  { path: "/replay", key: "replay" as const },
-  { path: "/techtree", key: "techtree" as const },
-  { path: "/players", key: "players" as const },
-  { path: "/tournaments", key: "tournaments" as const },
-  { path: "/live", key: "live" as const },
-  { path: "/learn", key: "learn" as const },
+  { path: "/agent", key: "agent" as const, icon: Swords },
+  { path: "/replay", key: "replay" as const, icon: Upload },
+  { path: "/techtree", key: "techtree" as const, icon: BookOpen },
+  { path: "/players", key: "players" as const, icon: Users },
+  { path: "/tournaments", key: "tournaments" as const, icon: Trophy },
+  { path: "/live", key: "live" as const, icon: Radio },
+  { path: "/learn", key: "learn" as const, icon: GraduationCap },
 ];
 
 export default function Navbar() {
@@ -30,6 +33,7 @@ export default function Navbar() {
   const items = NAV_KEYS.map((item) => ({
     href: `/${locale}${item.path}`,
     label: dict.nav[item.key],
+    icon: item.icon,
   }));
 
   return (
@@ -49,10 +53,11 @@ export default function Navbar() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "nav-link px-3 py-2 rounded-md",
+                  "nav-link px-3 py-2 rounded-md inline-flex items-center gap-1.5",
                   pathname === item.href && "nav-link-active bg-aoe-accent/10"
                 )}
               >
+                <item.icon className="w-3.5 h-3.5" />
                 {item.label}
               </Link>
             ))}
@@ -125,10 +130,11 @@ export default function Navbar() {
                   href={item.href}
                   onClick={() => setOpen(false)}
                   className={cn(
-                    "nav-link px-3 py-2 rounded-md",
+                    "nav-link px-3 py-2 rounded-md inline-flex items-center gap-2",
                     pathname === item.href && "nav-link-active bg-aoe-accent/10"
                   )}
                 >
+                  <item.icon className="w-4 h-4" />
                   {item.label}
                 </Link>
               ))}

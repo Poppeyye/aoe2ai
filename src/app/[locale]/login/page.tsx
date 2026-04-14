@@ -30,8 +30,8 @@ export default function LoginPage() {
   const d = dict.login;
   const { data: session, status } = useSession();
 
-  const hasGoogle = Boolean(process.env.NEXT_PUBLIC_HAS_GOOGLE);
-  const hasDiscord = Boolean(process.env.NEXT_PUBLIC_HAS_DISCORD);
+  const hasGoogle = true;
+  const hasDiscord = true;
   const hasProviders = hasGoogle || hasDiscord;
 
   if (status === "loading") {

@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import {
   Upload, FileText, Loader2, AlertCircle, Swords, Clock,
-  MapPin, MessageSquare, BarChart3, Shield, Flame, Crown,
+  MapPin, MessageSquare, BarChart3, Shield, Flame, Crown, Sparkles,
 } from "lucide-react";
 import { cn, formatTime } from "@/lib/utils";
 import { useDictionary, useLocale } from "@/i18n/I18nProvider";
@@ -11,6 +11,7 @@ import AssistantPanel from "@/components/ai/AssistantPanel";
 import ToolActivityPanel from "@/components/ai/ToolActivityPanel";
 import MarkdownMessage from "@/components/ai/MarkdownMessage";
 import { useStreamedAssistant } from "@/components/ai/useStreamedAssistant";
+import KofiHint from "@/components/ui/KofiHint";
 
 interface Player {
   name: string; civ: string; civId: number; color: number;
@@ -79,12 +80,19 @@ export default function ReplayPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Analysis failed");
       setResult(data);
+      requestAnimationFrame(() => window.scrollTo({ top: 0 }));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to analyze replay");
     } finally {
       setAnalyzing(false);
     }
   }, [d.error_format, locale]);
+
+  const [aiRequested, setAiRequested] = useState(false);
+
+  useEffect(() => {
+    setAiRequested(false);
+  }, [result?.map, result?.duration]);
 
   const streamedChronicle = useStreamedAssistant({
     surface: "replay",
@@ -93,9 +101,9 @@ export default function ReplayPage() {
     prompt: locale === "es"
       ? "Analiza este replay y crea una crónica clara con momentos decisivos, errores, aciertos y consejos de mejora."
       : "Analyze this replay and produce a clear chronicle with turning points, mistakes, strong decisions, and improvement advice.",
-    enabled: Boolean(result?.aiEnabled && result?.aiContext),
+    enabled: Boolean(aiRequested && result?.aiEnabled && result?.aiContext),
     resetKey: result
-      ? `${result.map}-${result.duration}-${result.players.map((p) => p.name).join("-")}-${locale}`
+      ? `${result.map}-${result.duration}-${result.players.map((p) => p.name).join("-")}-${locale}-${aiRequested}`
       : `empty-${locale}`,
   });
 
@@ -266,32 +274,48 @@ export default function ReplayPage() {
             <h2 className="section-title flex items-center gap-2">
               <FileText className="w-5 h-5 text-aoe-accent" /> {d.ai_chronicle}
             </h2>
-            <div className="space-y-4">
-              <ToolActivityPanel activities={streamedChronicle.activities} locale={locale === "es" ? "es" : "en"} />
-              {streamedChronicle.loading && !(result.aiEnabled ? streamedChronicle.text : result.chronicle) && (
-                <div className="flex items-start gap-3 rounded-lg bg-aoe-dark/50 border border-aoe-border/50 px-4 py-3">
-                  <Loader2 className="w-5 h-5 animate-spin text-aoe-accent mt-0.5 shrink-0" />
-                  <p className="text-sm text-gray-400">
-                    {locale === "es" ? "La IA está generando la crónica del replay..." : "The AI is generating the replay chronicle..."}
-                  </p>
-                </div>
-              )}
-              {streamedChronicle.error && (
-                <div className="flex items-start justify-between gap-3 rounded-lg bg-red-500/5 border border-red-500/20 px-4 py-3">
-                  <p className="text-sm text-red-300">{streamedChronicle.error}</p>
-                  <button onClick={() => void streamedChronicle.retry()} className="text-xs text-red-200 hover:text-white transition-colors">
-                    {locale === "es" ? "Reintentar" : "Retry"}
-                  </button>
-                </div>
-              )}
-            </div>
-            <MarkdownMessage content={result.aiEnabled ? (streamedChronicle.text || "") : (result.chronicle || "")} />
-            {streamedChronicle.loading && (result.aiEnabled ? streamedChronicle.text : result.chronicle) ? (
-              <div className="mt-3 flex items-center gap-2 text-xs text-gray-500">
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-aoe-accent" />
-                {locale === "es" ? "Generando más detalles..." : "Generating more detail..."}
+            {!aiRequested && result.aiEnabled ? (
+              <div className="text-center py-6">
+                <p className="text-sm text-gray-500 mb-4">
+                  {locale === "es"
+                    ? "Genera una crónica detallada con IA sobre los momentos clave del replay."
+                    : "Generate a detailed AI chronicle about the key moments of the replay."}
+                </p>
+                <button onClick={() => setAiRequested(true)} className="btn-primary inline-flex items-center gap-2">
+                  <Sparkles className="w-4 h-4" />
+                  {locale === "es" ? "Generar crónica con IA" : "Generate AI chronicle"}
+                </button>
               </div>
-            ) : null}
+            ) : (
+              <>
+                <div className="space-y-4">
+                  <ToolActivityPanel activities={aiRequested ? streamedChronicle.activities : []} locale={locale === "es" ? "es" : "en"} />
+                  {aiRequested && streamedChronicle.loading && !(streamedChronicle.text) && (
+                    <div className="flex items-start gap-3 rounded-lg bg-aoe-dark/50 border border-aoe-border/50 px-4 py-3">
+                      <Loader2 className="w-5 h-5 animate-spin text-aoe-accent mt-0.5 shrink-0" />
+                      <p className="text-sm text-gray-400">
+                        {locale === "es" ? "La IA está generando la crónica del replay..." : "The AI is generating the replay chronicle..."}
+                      </p>
+                    </div>
+                  )}
+                  {aiRequested && streamedChronicle.error && (
+                    <div className="flex items-start justify-between gap-3 rounded-lg bg-red-500/5 border border-red-500/20 px-4 py-3">
+                      <p className="text-sm text-red-300">{streamedChronicle.error}</p>
+                      <button onClick={() => void streamedChronicle.retry()} className="text-xs text-red-200 hover:text-white transition-colors">
+                        {locale === "es" ? "Reintentar" : "Retry"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <MarkdownMessage content={aiRequested ? (result.aiEnabled ? (streamedChronicle.text || "") : (result.chronicle || "")) : (result.chronicle || "")} />
+                {aiRequested && streamedChronicle.loading && streamedChronicle.text ? (
+                  <div className="mt-3 flex items-center gap-2 text-xs text-gray-500">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-aoe-accent" />
+                    {locale === "es" ? "Generando más detalles..." : "Generating more detail..."}
+                  </div>
+                ) : null}
+              </>
+            )}
           </div>
 
           {result.aiContext && (
@@ -423,6 +447,8 @@ export default function ReplayPage() {
               </div>
             </div>
           )}
+
+          <KofiHint />
 
           <button onClick={() => { setResult(null); setError(null); }} className="btn-secondary w-full">
             {d.analyze_another}
