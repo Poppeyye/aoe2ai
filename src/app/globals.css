@@ -1,8 +1,8 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
 
 @layer base {
   body {
@@ -60,4 +60,73 @@
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #3a4a5e;
+}
+
+@keyframes aoe-orb-pulse {
+  0%, 100% {
+    opacity: 0.35;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes aoe-dot-pulse {
+  0%, 100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes aoe-card-sheen {
+  0% {
+    transform: translateX(-130%);
+  }
+  100% {
+    transform: translateX(220%);
+  }
+}
+
+.aoe-tool-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.aoe-tool-card::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 -40%;
+  width: 30%;
+  background: linear-gradient(90deg, transparent, rgba(200, 169, 100, 0.08), transparent);
+  animation: aoe-card-sheen 2.8s linear infinite;
+  pointer-events: none;
+}
+
+.aoe-tool-orb {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: #c8a964;
+  box-shadow: 0 0 10px rgba(200, 169, 100, 0.45);
+  animation: aoe-orb-pulse 1.5s ease-in-out infinite;
+}
+
+.aoe-tool-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: #c8a964;
+  animation: aoe-dot-pulse 1.2s ease-in-out infinite;
+}
+
+.aoe-tool-dot-delay-1 {
+  animation-delay: 0.15s;
+}
+
+.aoe-tool-dot-delay-2 {
+  animation-delay: 0.3s;
 }
