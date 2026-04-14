@@ -77,13 +77,6 @@ jobs:
           echo "=== Building Docker image ==="
           docker build -t aoe2-next:new .
 
-          echo "=== Running database migrations ==="
-          docker run --rm \
-            -v aoe2-data:/app/data \
-            -e DATABASE_URL=file:./data/aoe2ai.db \
-            --entrypoint sh aoe2-next:new \
-            -c "npx prisma migrate deploy --schema ./prisma/schema.prisma 2>&1 || echo 'Migration note: may need first run'"
-
           echo "=== Swapping containers ==="
           docker stop aoe2 || true
           docker rm aoe2 || true
