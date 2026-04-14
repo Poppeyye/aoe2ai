@@ -1,0 +1,111 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create .env for production
+        run: |
+          cat > .env << 'ENVEOF'
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL=gpt-5-mini
+          RELIC_API_BASE=https://aoe-api.worldsedgelink.com
+          NEXT_PUBLIC_APP_URL=https://aoe2.ai
+          NEXT_PUBLIC_APP_NAME=AoE2.ai
+          NEXTAUTH_URL=https://aoe2.ai
+          NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }}
+          GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
+          DISCORD_CLIENT_ID=${{ secrets.DISCORD_CLIENT_ID }}
+          DISCORD_CLIENT_SECRET=${{ secrets.DISCORD_CLIENT_SECRET }}
+          NEXT_PUBLIC_HAS_GOOGLE=1
+          NEXT_PUBLIC_HAS_DISCORD=1
+          ENVEOF
+
+      - name: Create deployment package
+        run: |
+          tar czf /tmp/aoe2ai-deploy.tar.gz \
+            --exclude='node_modules' \
+            --exclude='.next' \
+            --exclude='.git' \
+            --exclude='client_secret_*' \
+            .
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Upload to EC2
+        run: |
+          scp -i ~/.ssh/deploy_key \
+            /tmp/aoe2ai-deploy.tar.gz \
+            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/tmp/aoe2ai-deploy.tar.gz
+
+      - name: Build and deploy on EC2
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} bash -s << 'REMOTE'
+          set -e
+
+          echo "=== Extracting code ==="
+          rm -rf ~/aoe2ai-build
+          mkdir -p ~/aoe2ai-build
+          cd ~/aoe2ai-build
+          tar xzf /tmp/aoe2ai-deploy.tar.gz
+
+          echo "=== Building Docker image ==="
+          docker build -t aoe2-next:new .
+
+          echo "=== Swapping containers ==="
+          docker stop aoe2 || true
+          docker rm aoe2 || true
+          docker run -d --name aoe2 \
+            --restart unless-stopped \
+            --env-file ~/aoe2ai-build/.env \
+            -p 127.0.0.1:8000:8000 \
+            aoe2-next:new
+
+          echo "=== Health check ==="
+          sleep 5
+          if docker ps | grep -q aoe2; then
+            echo "Container is running"
+          else
+            echo "ERROR: Container failed to start"
+            docker logs aoe2 --tail 20
+            exit 1
+          fi
+
+          echo "=== Cleanup ==="
+          docker image prune -f
+          docker rmi aoe2-next:latest 2>/dev/null || true
+          docker tag aoe2-next:new aoe2-next:latest
+          rm -f /tmp/aoe2ai-deploy.tar.gz
+
+          echo "=== Deploy successful ==="
+          REMOTE
+
+      - name: Verify site is up
+        run: |
+          sleep 3
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 https://aoe2.ai/ || echo "000")
+          if [ "$STATUS" = "200" ] || [ "$STATUS" = "301" ] || [ "$STATUS" = "302" ]; then
+            echo "Site is up (HTTP $STATUS)"
+          else
+            echo "WARNING: Site returned HTTP $STATUS"
+          fi
