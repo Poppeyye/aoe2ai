@@ -38,11 +38,20 @@ export async function generateMetadata({
       siteName: "AoE2.ai",
       type: "website",
       locale: locale === "es" ? "es_ES" : "en_US",
+      images: [
+        {
+          url: "https://aoe2.ai/og-image.png",
+          width: 1200,
+          height: 630,
+          alt: "AoE2.ai — AI-Powered Tools for Age of Empires II",
+        },
+      ],
     },
     twitter: {
       card: "summary_large_image",
       title: dict.meta.og_title,
       description: dict.meta.og_description,
+      images: ["https://aoe2.ai/og-image.png"],
     },
     alternates: {
       canonical: `https://aoe2.ai/${locale}`,
