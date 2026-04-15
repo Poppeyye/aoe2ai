@@ -52,6 +52,8 @@
     "tool_tournaments_desc": "Live results, brackets, and schedules from the biggest AoE2 tournaments. Follow Red Bull Wololo, T90 Titans League, and more.",
     "tool_live_title": "Opponent Scout",
     "tool_live_desc": "Search any opponent before your match. Analyze their civ preferences, win rates, recent form, and get AI-powered tactical recommendations.",
+    "tool_profile_title": "My Profile",
+    "tool_profile_desc": "Your personal dashboard with stats, match history, and real-time ranked match detection with automatic AI scouting of opponents.",
     "tool_learn_title": "Build Orders",
     "tool_learn_desc": "Master essential build orders with interactive step-by-step guides and a built-in practice timer. From beginner scouts to advanced tower rushes.",
     "stat_civs": "Civilizations",

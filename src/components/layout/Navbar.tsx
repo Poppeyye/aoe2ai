@@ -145,6 +145,19 @@ export default function Navbar() {
                   {item.label}
                 </Link>
               ))}
+              {session && (
+                <Link
+                  href={`/${locale}/profile`}
+                  onClick={() => setOpen(false)}
+                  className={cn(
+                    "nav-link px-3 py-2 rounded-md inline-flex items-center gap-2",
+                    pathname === `/${locale}/profile` && "nav-link-active bg-aoe-accent/10"
+                  )}
+                >
+                  <UserCircle className="w-4 h-4" />
+                  {dict.nav.profile}
+                </Link>
+              )}
               <div className="flex items-center justify-between mt-2 px-3">
                 <LanguageSwitcher />
                 {session ? (

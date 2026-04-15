@@ -25,8 +25,14 @@ interface LinkedProfile {
 interface PlayerSuggestion {
   profileId: number;
   name: string;
-  rating?: number;
+  rating: number;
+  rank: number;
+  wins: number;
+  losses: number;
+  streak: number;
   country?: string;
+  lastMatchDate?: number;
+  totalGames?: number;
 }
 
 interface CompanionLeaderboard {
@@ -106,7 +112,10 @@ export default function ProfilePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [suggestions, setSuggestions] = useState<PlayerSuggestion[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
   const [linking, setLinking] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   const [playerStats, setPlayerStats] = useState<PlayerStats | null>(null);
   const [civStats, setCivStats] = useState<CivStat[]>([]);
@@ -173,34 +182,43 @@ export default function ProfilePage() {
   }
 
   useEffect(() => {
-    if (searchQuery.length < 3) {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  function onSearchChange(value: string) {
+    setSearchQuery(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    if (value.trim().length < 3) {
       setSuggestions([]);
+      setShowDropdown(value.trim().length > 0);
       return;
     }
-    const timer = setTimeout(async () => {
-      setSearchLoading(true);
+
+    setShowDropdown(true);
+    setSearchLoading(true);
+    debounceRef.current = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/players?q=${encodeURIComponent(searchQuery)}`);
+        const res = await fetch(`/api/players?q=${encodeURIComponent(value.trim())}&type=rm_1v1`);
         const data = await res.json();
-        const profiles = data.profiles || [];
-        setSuggestions(profiles.slice(0, 8).map((p: Record<string, unknown>) => ({
-          profileId: p.profileId,
-          name: p.name,
-          rating: (p.leaderboards as Array<{ abbreviation: string; rating: number }>)
-            ?.find((lb) => lb.abbreviation === "RM 1v1")?.rating,
-          country: p.country,
-        })));
+        setSuggestions(data.players || []);
       } catch {
         setSuggestions([]);
       } finally {
         setSearchLoading(false);
       }
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
+    }, 350);
+  }
 
   async function linkProfile(profileId: number) {
     setLinking(true);
+    setShowDropdown(false);
     try {
       const res = await fetch("/api/profile", {
         method: "PUT",
@@ -382,11 +400,14 @@ export default function ProfilePage() {
         <ProfileLinker
           t={t}
           searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
+          onSearchChange={onSearchChange}
           suggestions={suggestions}
           searchLoading={searchLoading}
+          showDropdown={showDropdown}
+          setShowDropdown={setShowDropdown}
           linking={linking}
           linkProfile={linkProfile}
+          searchRef={searchRef}
         />
       ) : (
         <div className="space-y-6">
@@ -590,70 +611,124 @@ function StatCard({ label, value, icon }: { label: string; value: string; icon: 
 function ProfileLinker({
   t,
   searchQuery,
-  setSearchQuery,
+  onSearchChange,
   suggestions,
   searchLoading,
+  showDropdown,
+  setShowDropdown,
   linking,
   linkProfile,
+  searchRef,
 }: {
   t: Record<string, string>;
   searchQuery: string;
-  setSearchQuery: (q: string) => void;
+  onSearchChange: (q: string) => void;
   suggestions: PlayerSuggestion[];
   searchLoading: boolean;
+  showDropdown: boolean;
+  setShowDropdown: (v: boolean) => void;
   linking: boolean;
   linkProfile: (id: number) => void;
+  searchRef: React.RefObject<HTMLDivElement>;
 }) {
+  const now = Math.floor(Date.now() / 1000);
+
   return (
-    <div className="max-w-lg mx-auto">
+    <div className="max-w-xl mx-auto">
       <div className="bg-slate-800/60 backdrop-blur-sm border border-amber-900/20 rounded-xl p-8 text-center">
         <Link2 className="w-12 h-12 text-amber-500/50 mx-auto mb-4" />
         <h2 className="text-xl font-bold text-amber-100 mb-2">{t.link_profile}</h2>
         <p className="text-slate-400 text-sm mb-6">{t.no_profile}</p>
 
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={t.link_placeholder}
-            className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-3 text-sm text-white placeholder-slate-500 focus:border-amber-500/50 focus:outline-none"
-          />
-          {searchLoading && (
-            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-500 animate-spin" />
+        <div ref={searchRef} className="relative text-left">
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => onSearchChange(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Escape") setShowDropdown(false); }}
+              onFocus={() => { if (searchQuery.trim().length >= 3 && suggestions.length > 0) setShowDropdown(true); }}
+              placeholder={t.link_placeholder}
+              className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-12 pr-10 py-3 text-sm text-white placeholder-slate-500 focus:border-amber-500/50 focus:outline-none"
+            />
+            {searchLoading && (
+              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-500 animate-spin" />
+            )}
+          </div>
+
+          {showDropdown && (
+            <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl overflow-hidden max-h-[420px] overflow-y-auto">
+              {searchLoading ? (
+                <div className="flex items-center justify-center gap-2 py-6 text-slate-400">
+                  <Loader2 className="w-4 h-4 animate-spin" /> Searching...
+                </div>
+              ) : searchQuery.trim().length < 3 ? (
+                <div className="py-6 text-center text-slate-500 text-sm">{t.link_placeholder}</div>
+              ) : suggestions.length === 0 ? (
+                <div className="py-6 text-center text-slate-500 text-sm">No players found</div>
+              ) : (
+                suggestions.slice(0, 15).map((p, idx) => {
+                  const totalGames = (p.totalGames ?? p.wins + p.losses) || 0;
+                  const daysSince = p.lastMatchDate && p.lastMatchDate > 0
+                    ? Math.floor((now - p.lastMatchDate) / 86400)
+                    : null;
+
+                  return (
+                    <button
+                      key={p.profileId}
+                      onClick={() => linkProfile(p.profileId)}
+                      disabled={linking}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-amber-500/10 transition-colors",
+                        idx > 0 && "border-t border-slate-700/30",
+                      )}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-white truncate">{p.name}</span>
+                          {p.country && (
+                            <span className="text-xs text-slate-500 shrink-0">{p.country.toUpperCase()}</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-500">
+                          {totalGames > 0 && (
+                            <span>
+                              <span className="text-green-400">{p.wins}W</span>
+                              {" / "}
+                              <span className="text-red-400">{p.losses}L</span>
+                              <span className="text-slate-600 ml-1">({totalGames})</span>
+                            </span>
+                          )}
+                          {daysSince !== null && daysSince < 365 && (
+                            <span className={cn(
+                              daysSince < 7 ? "text-green-400" : daysSince < 30 ? "text-yellow-400" : "text-slate-500",
+                            )}>
+                              {daysSince === 0 ? "Today" : `${daysSince}d ago`}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {p.rating > 0 && (
+                          <span className="text-sm font-bold text-amber-400">{p.rating}</span>
+                        )}
+                        {p.rank > 0 && (
+                          <span className="text-xs text-slate-500">#{p.rank}</span>
+                        )}
+                        {linking ? (
+                          <Loader2 className="w-4 h-4 text-amber-500 animate-spin" />
+                        ) : (
+                          <ChevronRight className="w-4 h-4 text-slate-600" />
+                        )}
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
           )}
         </div>
-
-        {suggestions.length > 0 && (
-          <div className="mt-2 border border-slate-700 rounded-lg overflow-hidden">
-            {suggestions.map((p) => (
-              <button
-                key={p.profileId}
-                onClick={() => linkProfile(p.profileId)}
-                disabled={linking}
-                className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-700/50 transition-colors text-left border-b border-slate-700/50 last:border-0"
-              >
-                <div>
-                  <span className="text-sm text-white font-medium">{p.name}</span>
-                  {p.country && (
-                    <span className="text-xs text-slate-500 ml-2">{p.country.toUpperCase()}</span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  {p.rating && (
-                    <span className="text-xs text-amber-400 font-medium">{p.rating}</span>
-                  )}
-                  {linking ? (
-                    <Loader2 className="w-4 h-4 text-amber-500 animate-spin" />
-                  ) : (
-                    <ChevronRight className="w-4 h-4 text-slate-500" />
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );

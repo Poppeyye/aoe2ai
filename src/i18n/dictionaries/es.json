@@ -52,6 +52,8 @@
     "tool_tournaments_desc": "Resultados en vivo, brackets y calendarios de los torneos más importantes de AoE2. Sigue Red Bull Wololo, T90 Titans League y más.",
     "tool_live_title": "Scout de Oponente",
     "tool_live_desc": "Busca a cualquier oponente antes de tu partida. Analiza sus civs favoritas, tasas de victoria, forma reciente y obtén recomendaciones tácticas con IA.",
+    "tool_profile_title": "Mi Perfil",
+    "tool_profile_desc": "Tu panel personal con estadísticas, historial de partidas y detección de ranked en tiempo real con scouting automático del rival por IA.",
     "tool_learn_title": "Build Orders",
     "tool_learn_desc": "Domina los build orders esenciales con guías interactivas paso a paso y un temporizador de práctica integrado. Desde scouts básicos hasta tower rush avanzado.",
     "stat_civs": "Civilizaciones",

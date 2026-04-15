@@ -7,6 +7,7 @@ import {
   Trophy,
   Radio,
   GraduationCap,
+  UserCircle,
 } from "lucide-react";
 import { getDictionary } from "@/i18n/getDictionary";
 import type { Locale } from "@/i18n/config";
@@ -31,6 +32,7 @@ export default async function HomePage({
     { href: `/${locale}/players`, icon: Users, title: d.tool_players_title, desc: d.tool_players_desc },
     { href: `/${locale}/tournaments`, icon: Trophy, title: d.tool_tournaments_title, desc: d.tool_tournaments_desc, tag: "LIVE" },
     { href: `/${locale}/live`, icon: Radio, title: d.tool_live_title, desc: d.tool_live_desc, tag: "New" },
+    { href: `/${locale}/profile`, icon: UserCircle, title: d.tool_profile_title, desc: d.tool_profile_desc, tag: "New" },
     { href: `/${locale}/learn`, icon: GraduationCap, title: d.tool_learn_title, desc: d.tool_learn_desc },
   ];
 
