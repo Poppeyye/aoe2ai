@@ -15,12 +15,13 @@ interface GenerateTextOptions {
 }
 
 export interface AssistantStreamEvent {
-  type: "text_delta" | "tool_call" | "tool_result" | "done" | "error";
+  type: "text_delta" | "tool_call" | "tool_result" | "status" | "done" | "error";
   text?: string;
   toolName?: string;
   args?: Record<string, unknown>;
   output?: string;
   error?: string;
+  status?: string;
   annotations?: Array<{ type: string; url?: string; title?: string; start_index?: number; end_index?: number }>;
 }
 
@@ -285,6 +286,12 @@ export async function* streamTextResponse({
   let nextInput: any = config.input;
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
+    if (round === 0) {
+      yield { type: "status", status: "thinking" };
+    } else {
+      yield { type: "status", status: "analyzing" };
+    }
+
     const stream = await client.responses.create({
       model: config.model,
       instructions: previousResponseId ? undefined : config.instructions,
@@ -296,18 +303,24 @@ export async function* streamTextResponse({
 
     const functionCalls = new Map<string, any>();
     let sawWebSearch = false;
+    let sawTextDelta = false;
 
     for await (const event of stream as any) {
       const responseId = extractResponseIdFromEvent(event);
       if (responseId) previousResponseId = responseId;
 
       if (event.type === "response.output_text.delta" && typeof event.delta === "string") {
+        if (!sawTextDelta) {
+          sawTextDelta = true;
+          yield { type: "status", status: "clear" };
+        }
         yield { type: "text_delta", text: event.delta };
       }
 
       if (event.type === "response.output_item.added" && event.item?.type === "web_search_call") {
         if (!sawWebSearch) {
           sawWebSearch = true;
+          yield { type: "status", status: "clear" };
           yield { type: "tool_call", toolName: "web_search" };
         }
       }
@@ -323,6 +336,8 @@ export async function* streamTextResponse({
       yield { type: "done" };
       return;
     }
+
+    yield { type: "status", status: "clear" };
 
     const calls = Array.from(functionCalls.values()).map((call) => ({
       ...call,
@@ -349,8 +364,6 @@ export async function* streamTextResponse({
       call_id: call.call_id,
       output,
     }));
-
-    nextInput = toolOutputs;
   }
 
   yield {

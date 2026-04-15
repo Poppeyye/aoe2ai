@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  BookOpen,
   Globe,
   Radio,
   ScrollText,

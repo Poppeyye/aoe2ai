@@ -9,12 +9,13 @@ export interface StreamPayload {
 }
 
 export interface ClientAssistantStreamEvent {
-  type: "text_delta" | "tool_call" | "tool_result" | "done" | "error";
+  type: "text_delta" | "tool_call" | "tool_result" | "status" | "done" | "error";
   text?: string;
   toolName?: string;
   args?: Record<string, unknown>;
   output?: string;
   error?: string;
+  status?: string;
 }
 
 export async function readAssistantStream(
