@@ -15,6 +15,8 @@ model User {
   image         String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  aoe2ProfileId Int?
+  aoe2Name      String?
   accounts      Account[]
   sessions      Session[]
 }

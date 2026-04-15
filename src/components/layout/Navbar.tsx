@@ -7,7 +7,7 @@ import { useSession, signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import {
   Menu, X, Swords, LogOut, User, Upload, BookOpen, Users,
-  Trophy, Radio, GraduationCap,
+  Trophy, Radio, GraduationCap, UserCircle,
 } from "lucide-react";
 import { useDictionary, useLocale } from "@/i18n/I18nProvider";
 import LanguageSwitcher from "./LanguageSwitcher";
@@ -94,6 +94,13 @@ export default function Navbar() {
                         {session.user?.email}
                       </div>
                     </div>
+                    <Link
+                      href={`/${locale}/profile`}
+                      onClick={() => setUserMenuOpen(false)}
+                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-400 hover:text-white hover:bg-aoe-dark/50 transition-colors"
+                    >
+                      <UserCircle className="w-4 h-4" /> {dict.nav.profile}
+                    </Link>
                     <button
                       onClick={() => {
                         setUserMenuOpen(false);

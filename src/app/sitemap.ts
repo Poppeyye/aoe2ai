@@ -11,6 +11,7 @@ const PAGES = [
   "/tournaments",
   "/live",
   "/learn",
+  "/profile",
   "/privacy",
 ];
 

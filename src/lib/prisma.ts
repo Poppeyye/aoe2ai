@@ -32,7 +32,9 @@ function ensureDatabase() {
         "emailVerified" DATETIME,
         "image" TEXT,
         "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" DATETIME NOT NULL
+        "updatedAt" DATETIME NOT NULL,
+        "aoe2ProfileId" INTEGER,
+        "aoe2Name" TEXT
       );
       CREATE TABLE IF NOT EXISTS "Account" (
         "id" TEXT NOT NULL PRIMARY KEY,
@@ -66,6 +68,17 @@ function ensureDatabase() {
       CREATE UNIQUE INDEX IF NOT EXISTS "Session_sessionToken_key" ON "Session"("sessionToken");
       CREATE UNIQUE INDEX IF NOT EXISTS "VerificationToken_token_key" ON "VerificationToken"("token");
       CREATE UNIQUE INDEX IF NOT EXISTS "VerificationToken_identifier_token_key" ON "VerificationToken"("identifier", "token");
+    `);
+  }
+
+  const hasProfileCol = db
+    .prepare("SELECT COUNT(*) as cnt FROM pragma_table_info('User') WHERE name='aoe2ProfileId'")
+    .get() as { cnt: number };
+
+  if (hasProfileCol.cnt === 0) {
+    db.exec(`
+      ALTER TABLE "User" ADD COLUMN "aoe2ProfileId" INTEGER;
+      ALTER TABLE "User" ADD COLUMN "aoe2Name" TEXT;
     `);
   }
 
