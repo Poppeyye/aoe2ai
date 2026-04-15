@@ -6,6 +6,20 @@ import {
   type CompanionMatchPlayer,
 } from "@/lib/api/relic";
 
+export interface LeaderboardStats {
+  rating: number;
+  rank: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  streak: number;
+  highestRating: number;
+  drops: number;
+  games: number;
+  rankCountry: number;
+  lastMatchTime: string | null;
+}
+
 export interface ScoutProfile {
   name: string;
   profileId: number;
@@ -17,6 +31,8 @@ export interface ScoutProfile {
   streak: number;
   highestRating: number;
   clan: string | null;
+  rm1v1: LeaderboardStats | null;
+  rmTeam: LeaderboardStats | null;
 }
 
 export interface CivStat {
@@ -238,12 +254,36 @@ export function getCivRecommendations(civStats: CivStat[]): CivRecommendation[] 
   ];
 }
 
+function extractLeaderboardStats(lb: {
+  rating: number; rank: number; wins: number; losses: number;
+  streak: number; maxRating: number; drops: number; games: number;
+  rankCountry: number; lastMatchTime: string | null;
+} | undefined): LeaderboardStats | null {
+  if (!lb) return null;
+  const total = lb.wins + lb.losses;
+  return {
+    rating: lb.rating,
+    rank: lb.rank,
+    wins: lb.wins,
+    losses: lb.losses,
+    winRate: total > 0 ? Math.round((lb.wins / total) * 1000) / 10 : 0,
+    streak: lb.streak,
+    highestRating: lb.maxRating ?? lb.rating,
+    drops: lb.drops ?? 0,
+    games: lb.games ?? total,
+    rankCountry: lb.rankCountry ?? 0,
+    lastMatchTime: lb.lastMatchTime ?? null,
+  };
+}
+
 export async function buildScoutReport({
   profileId,
   name,
+  leaderboardType = "rm_1v1",
 }: {
   profileId?: number;
   name?: string;
+  leaderboardType?: "rm_1v1" | "rm_team";
 }): Promise<ScoutReport> {
   let resolvedProfileId = profileId ?? null;
 
@@ -261,24 +301,31 @@ export async function buildScoutReport({
 
   const [companionProfile, matches] = await Promise.all([
     getCompanionProfile(resolvedProfileId),
-    getCompanionMatches(resolvedProfileId, "rm_1v1", 5),
+    getCompanionMatches(resolvedProfileId, leaderboardType, 5),
   ]);
 
-  const rm1v1 = companionProfile.leaderboards?.find(
+  const rm1v1Lb = companionProfile.leaderboards?.find(
     (lb) => lb.abbreviation === "RM 1v1" || lb.leaderboardId === "rm_1v1",
   );
+  const rmTeamLb = companionProfile.leaderboards?.find(
+    (lb) => lb.abbreviation === "RM Team" || lb.leaderboardId === "rm_team",
+  );
+
+  const primaryLb = leaderboardType === "rm_team" ? rmTeamLb : rm1v1Lb;
 
   const profile: ScoutProfile = {
     name: companionProfile.name,
     profileId: companionProfile.profileId,
     country: companionProfile.country ?? companionProfile.countryName ?? null,
-    rating: rm1v1?.rating ?? 0,
-    rank: rm1v1?.rank ?? 0,
-    wins: rm1v1?.wins ?? 0,
-    losses: rm1v1?.losses ?? 0,
-    streak: rm1v1?.streak ?? 0,
-    highestRating: rm1v1?.maxRating ?? 0,
+    rating: primaryLb?.rating ?? 0,
+    rank: primaryLb?.rank ?? 0,
+    wins: primaryLb?.wins ?? 0,
+    losses: primaryLb?.losses ?? 0,
+    streak: primaryLb?.streak ?? 0,
+    highestRating: primaryLb?.maxRating ?? 0,
     clan: companionProfile.clan ?? null,
+    rm1v1: extractLeaderboardStats(rm1v1Lb),
+    rmTeam: extractLeaderboardStats(rmTeamLb),
   };
 
   const civStats = computeCivStats(matches, resolvedProfileId);

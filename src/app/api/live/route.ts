@@ -35,9 +35,12 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    const lbType = params.get("lb") === "rm_team" ? "rm_team" as const : "rm_1v1" as const;
+
     const scoutReport = await buildScoutReport({
       profileId,
       name: nameParam || undefined,
+      leaderboardType: lbType,
     });
 
     return NextResponse.json({

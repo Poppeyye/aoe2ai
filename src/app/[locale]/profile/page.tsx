@@ -334,11 +334,14 @@ export default function ProfilePage() {
 
     if (opponents.length === 0) return;
 
+    const isTeamGame = opponents.length > 1 || Object.values(liveMatch.slots).filter((s) => s.status === 3 && s.team === myTeam && s.profileid !== myId).length > 0;
+    const lb = isTeamGame ? "rm_team" : "rm_1v1";
+
     setScouting(true);
     Promise.all(
       opponents.map(async (slot) => {
         try {
-          const res = await fetch(`/api/live?profileId=${slot.profileid}&locale=${locale}`);
+          const res = await fetch(`/api/live?profileId=${slot.profileid}&locale=${locale}&lb=${lb}`);
           const data = await res.json();
           return { slot, data };
         } catch {
@@ -978,47 +981,99 @@ function LiveMatchPanel({
             <div className="space-y-4">
               {opponentScouts.map((opp) => {
                 const p = opp.data.profile as Record<string, unknown> | undefined;
+                const rm1v1 = p?.rm1v1 as Record<string, number | string | null> | undefined;
+                const rmTeam = p?.rmTeam as Record<string, number | string | null> | undefined;
                 const civs = opp.data.civStats as CivStat[] | undefined;
                 const maps = opp.data.mapStats as { map: string; games: number; wins: number; losses: number }[] | undefined;
                 const form = opp.data.recentForm as string[] | undefined;
+                const avgDuration = opp.data.avgGameDuration as number | undefined;
 
                 if (!p) return null;
 
                 return (
                   <div key={opp.slot.profileid} className="bg-slate-900/60 rounded-lg p-4 space-y-3">
-                    <h4 className="text-sm font-bold text-amber-100 flex items-center gap-2">
-                      <Target className="w-4 h-4 text-amber-500" />
-                      {String(p.name || opp.slot.name || "Unknown")}
-                      {!liveMatch.hide_civilizations && (
-                        <span className="text-xs text-slate-400 font-normal">
-                          — {getCivName(opp.slot.civilization)}
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-bold text-amber-100 flex items-center gap-2">
+                        <Target className="w-4 h-4 text-amber-500" />
+                        {String(p.name || opp.slot.name || "Unknown")}
+                        {!liveMatch.hide_civilizations && (
+                          <span className="text-xs text-slate-400 font-normal">
+                            — {getCivName(opp.slot.civilization)}
+                          </span>
+                        )}
+                      </h4>
+                      {typeof p.country === "string" && p.country && (
+                        <span className="text-xs text-slate-500">{p.country.toUpperCase()}</span>
+                      )}
+                    </div>
+
+                    {/* Dual ELO ratings */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className={cn("rounded-lg p-3 border", rm1v1 && Number(rm1v1.rating) > 0 ? "bg-slate-800/60 border-slate-700/50" : "bg-slate-800/30 border-slate-700/20")}>
+                        <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">RM 1v1</div>
+                        {rm1v1 && Number(rm1v1.rating) > 0 ? (
+                          <div className="space-y-1">
+                            <div className="flex items-baseline gap-2">
+                              <span className="text-xl font-bold text-amber-100">{String(rm1v1.rating)}</span>
+                              <span className="text-xs text-slate-500">#{String(rm1v1.rank)}</span>
+                            </div>
+                            <div className="flex items-center gap-3 text-xs">
+                              <span><span className="text-green-400">{String(rm1v1.wins)}W</span> / <span className="text-red-400">{String(rm1v1.losses)}L</span></span>
+                              <span className="text-slate-400">{String(rm1v1.winRate)}%</span>
+                              <span className="text-slate-500">{locale === "es" ? "Pico" : "Peak"}: {String(rm1v1.highestRating)}</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-600">{locale === "es" ? "Sin datos" : "No data"}</span>
+                        )}
+                      </div>
+                      <div className={cn("rounded-lg p-3 border", rmTeam && Number(rmTeam.rating) > 0 ? "bg-slate-800/60 border-slate-700/50" : "bg-slate-800/30 border-slate-700/20")}>
+                        <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">RM Team</div>
+                        {rmTeam && Number(rmTeam.rating) > 0 ? (
+                          <div className="space-y-1">
+                            <div className="flex items-baseline gap-2">
+                              <span className="text-xl font-bold text-amber-100">{String(rmTeam.rating)}</span>
+                              <span className="text-xs text-slate-500">#{String(rmTeam.rank)}</span>
+                            </div>
+                            <div className="flex items-center gap-3 text-xs">
+                              <span><span className="text-green-400">{String(rmTeam.wins)}W</span> / <span className="text-red-400">{String(rmTeam.losses)}L</span></span>
+                              <span className="text-slate-400">{String(rmTeam.winRate)}%</span>
+                              <span className="text-slate-500">{locale === "es" ? "Pico" : "Peak"}: {String(rmTeam.highestRating)}</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-600">{locale === "es" ? "Sin datos" : "No data"}</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Extra stats row */}
+                    <div className="flex items-center gap-4 text-xs flex-wrap">
+                      {Number(p.streak ?? 0) !== 0 && (
+                        <span className={cn("flex items-center gap-1", Number(p.streak) >= 0 ? "text-green-400" : "text-red-400")}>
+                          {Number(p.streak) >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                          {locale === "es" ? "Racha" : "Streak"}: {String(p.streak)}
                         </span>
                       )}
-                    </h4>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      <div className="bg-slate-800/60 rounded-lg p-2.5 text-center">
-                        <div className="text-xs text-slate-500 mb-0.5">{t.rating}</div>
-                        <div className="text-lg font-bold text-amber-100">{String(p.rating ?? "—")}</div>
-                      </div>
-                      <div className="bg-slate-800/60 rounded-lg p-2.5 text-center">
-                        <div className="text-xs text-slate-500 mb-0.5">{t.rank}</div>
-                        <div className="text-lg font-bold text-amber-100">#{String(p.rank ?? "—")}</div>
-                      </div>
-                      <div className="bg-slate-800/60 rounded-lg p-2.5 text-center">
-                        <div className="text-xs text-slate-500 mb-0.5">{t.record}</div>
-                        <div className="text-sm font-bold text-amber-100">
-                          <span className="text-green-400">{String(p.wins ?? 0)}W</span>
-                          {" / "}
-                          <span className="text-red-400">{String(p.losses ?? 0)}L</span>
-                        </div>
-                      </div>
-                      <div className="bg-slate-800/60 rounded-lg p-2.5 text-center">
-                        <div className="text-xs text-slate-500 mb-0.5">{t.streak}</div>
-                        <div className={cn("text-lg font-bold", Number(p.streak ?? 0) >= 0 ? "text-green-400" : "text-red-400")}>
-                          {String(p.streak ?? 0)}
-                        </div>
-                      </div>
+                      {avgDuration && avgDuration > 0 && (
+                        <span className="text-slate-400">
+                          {locale === "es" ? "Duración media" : "Avg. game"}: {formatTime(avgDuration)}
+                        </span>
+                      )}
+                      {(() => {
+                        const primaryLb = isTeamGame ? rmTeam : rm1v1;
+                        const drops = Number(primaryLb?.drops ?? 0);
+                        const games = Number(primaryLb?.games ?? 0);
+                        if (drops > 0 && games > 0) {
+                          const dropRate = Math.round((drops / games) * 100);
+                          return (
+                            <span className={cn(dropRate > 5 ? "text-red-400" : "text-slate-500")}>
+                              Drops: {drops} ({dropRate}%)
+                            </span>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
 
                     {form && form.length > 0 && (
