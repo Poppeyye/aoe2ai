@@ -390,7 +390,7 @@ export default function ProfilePage() {
             setAiText((prev) => prev + (event.text || ""));
           } else if (event.type === "tool_call" && event.toolName) {
             const toolName = event.toolName;
-            setAiActivities((prev) => [...prev, { id: `${toolName}-${prev.length}`, toolName, status: "running" }]);
+            setAiActivities((prev) => [...prev, { id: `${toolName}-${prev.length}`, toolName, status: "running", args: event.args }]);
           } else if (event.type === "tool_result" && event.toolName) {
             const toolName = event.toolName;
             setAiActivities((prev) => prev.map((a) => a.toolName === toolName && a.status === "running" ? { ...a, status: "done" } : a));

@@ -3,16 +3,11 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import {
   Upload, FileText, Loader2, AlertCircle, Swords, Clock,
-  MapPin, MessageSquare, BarChart3, Shield, Flame, Crown, Sparkles, LogIn,
+  MapPin, MessageSquare, BarChart3, Shield, Flame, Crown,
 } from "lucide-react";
-import Link from "next/link";
 import { cn, formatTime } from "@/lib/utils";
 import { useDictionary, useLocale } from "@/i18n/I18nProvider";
-import { useRequireAuth } from "@/hooks/useRequireAuth";
 import AssistantPanel from "@/components/ai/AssistantPanel";
-import ToolActivityPanel from "@/components/ai/ToolActivityPanel";
-import MarkdownMessage from "@/components/ai/MarkdownMessage";
-import { useStreamedAssistant } from "@/components/ai/useStreamedAssistant";
 import KofiHint from "@/components/ui/KofiHint";
 
 interface Player {
@@ -61,7 +56,6 @@ export default function ReplayPage() {
   const dict = useDictionary();
   const locale = useLocale();
   const d = dict.replay;
-  const { isAuthenticated, loginUrl } = useRequireAuth();
   const [dragging, setDragging] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
@@ -90,25 +84,6 @@ export default function ReplayPage() {
       setAnalyzing(false);
     }
   }, [d.error_format, locale]);
-
-  const [aiRequested, setAiRequested] = useState(false);
-
-  useEffect(() => {
-    setAiRequested(false);
-  }, [result?.map, result?.duration]);
-
-  const streamedChronicle = useStreamedAssistant({
-    surface: "replay",
-    locale: locale === "es" ? "es" : "en",
-    context: result?.aiContext,
-    prompt: locale === "es"
-      ? "Analiza este replay y crea una crónica clara con momentos decisivos, errores, aciertos y consejos de mejora."
-      : "Analyze this replay and produce a clear chronicle with turning points, mistakes, strong decisions, and improvement advice.",
-    enabled: Boolean(aiRequested && result?.aiEnabled && result?.aiContext),
-    resetKey: result
-      ? `${result.map}-${result.duration}-${result.players.map((p) => p.name).join("-")}-${locale}-${aiRequested}`
-      : `empty-${locale}`,
-  });
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
@@ -273,77 +248,20 @@ export default function ReplayPage() {
             </div>
           )}
 
-          <div className="card">
-            <h2 className="section-title flex items-center gap-2">
-              <FileText className="w-5 h-5 text-aoe-accent" /> {d.ai_chronicle}
-            </h2>
-            {!isAuthenticated ? (
-              <div className="text-center py-6">
-                <LogIn className="w-8 h-8 text-aoe-accent mx-auto mb-3" />
-                <p className="text-sm text-gray-300 mb-4">
-                  {locale === "es"
-                    ? "Inicia sesión para generar crónicas con IA"
-                    : "Sign in to generate AI chronicles"}
-                </p>
-                <Link href={loginUrl} className="btn-primary inline-flex items-center gap-2 text-sm">
-                  <LogIn className="w-4 h-4" />
-                  {locale === "es" ? "Iniciar sesión" : "Sign in"}
-                </Link>
-              </div>
-            ) : !aiRequested && result.aiEnabled ? (
-              <div className="text-center py-6">
-                <p className="text-sm text-gray-500 mb-4">
-                  {locale === "es"
-                    ? "Genera una crónica detallada con IA sobre los momentos clave del replay."
-                    : "Generate a detailed AI chronicle about the key moments of the replay."}
-                </p>
-                <button onClick={() => setAiRequested(true)} className="btn-primary inline-flex items-center gap-2">
-                  <Sparkles className="w-4 h-4" />
-                  {locale === "es" ? "Generar crónica con IA" : "Generate AI chronicle"}
-                </button>
-              </div>
-            ) : (
-              <>
-                <div className="space-y-4">
-                  <ToolActivityPanel activities={aiRequested ? streamedChronicle.activities : []} locale={locale === "es" ? "es" : "en"} />
-                  {aiRequested && streamedChronicle.loading && !(streamedChronicle.text) && (
-                    <div className="flex items-start gap-3 rounded-lg bg-aoe-dark/50 border border-aoe-border/50 px-4 py-3">
-                      <Loader2 className="w-5 h-5 animate-spin text-aoe-accent mt-0.5 shrink-0" />
-                      <p className="text-sm text-gray-400">
-                        {locale === "es" ? "La IA está generando la crónica del replay..." : "The AI is generating the replay chronicle..."}
-                      </p>
-                    </div>
-                  )}
-                  {aiRequested && streamedChronicle.error && (
-                    <div className="flex items-start justify-between gap-3 rounded-lg bg-red-500/5 border border-red-500/20 px-4 py-3">
-                      <p className="text-sm text-red-300">{streamedChronicle.error}</p>
-                      <button onClick={() => void streamedChronicle.retry()} className="text-xs text-red-200 hover:text-white transition-colors">
-                        {locale === "es" ? "Reintentar" : "Retry"}
-                      </button>
-                    </div>
-                  )}
-                </div>
-                <MarkdownMessage content={aiRequested ? (result.aiEnabled ? (streamedChronicle.text || "") : (result.chronicle || "")) : (result.chronicle || "")} />
-                {aiRequested && streamedChronicle.loading && streamedChronicle.text ? (
-                  <div className="mt-3 flex items-center gap-2 text-xs text-gray-500">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-aoe-accent" />
-                    {locale === "es" ? "Generando más detalles..." : "Generating more detail..."}
-                  </div>
-                ) : null}
-              </>
-            )}
-          </div>
-
           {result.aiContext && (
             <AssistantPanel
               surface="replay"
               locale={locale === "es" ? "es" : "en"}
               context={result.aiContext}
-              title={locale === "es" ? "Pregunta sobre este replay" : "Ask about this replay"}
+              title={d.ai_chronicle}
               placeholder={locale === "es" ? "Pregunta por timings, errores, transiciones..." : "Ask about timings, mistakes, transitions..."}
-              emptyHint={locale === "es"
-                ? "Puedes profundizar en decisiones concretas del replay: por qué una batalla salió mal, qué transición faltó o cuál era el mejor plan."
-                : "You can go deeper on specific replay decisions: why a fight went badly, which transition was missing, or what the best plan was."}
+              initialPrompt={locale === "es"
+                ? "Analiza este replay y crea una crónica clara con momentos decisivos, errores, aciertos y consejos de mejora."
+                : "Analyze this replay and produce a clear chronicle with turning points, mistakes, strong decisions, and improvement advice."}
+              initialPromptLabel={locale === "es" ? "Generar crónica con IA" : "Generate AI chronicle"}
+              initialPromptDescription={locale === "es"
+                ? "Genera una crónica detallada con IA sobre los momentos clave del replay. Después podrás hacer preguntas de seguimiento."
+                : "Generate a detailed AI chronicle about the key moments of the replay. You can ask follow-up questions after."}
               suggestions={locale === "es"
                 ? [
                   "¿Cuál fue el mayor error estratégico?",

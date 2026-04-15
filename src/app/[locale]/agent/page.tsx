@@ -99,7 +99,7 @@ export default function AgentPage() {
             const toolName = event.toolName;
             setActivities((prev) => [
               ...prev,
-              { id: `${toolName}-${prev.length}`, toolName, status: "running" },
+              { id: `${toolName}-${prev.length}`, toolName, status: "running", args: event.args },
             ]);
           }
 

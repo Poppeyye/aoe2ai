@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Loader2, Send, Sparkles, LogIn } from "lucide-react";
 import Link from "next/link";
 import { cn, generateId } from "@/lib/utils";
@@ -16,6 +16,7 @@ interface PanelMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  hidden?: boolean;
 }
 
 interface AssistantPanelProps {
@@ -26,6 +27,9 @@ interface AssistantPanelProps {
   placeholder: string;
   emptyHint?: string;
   suggestions?: string[];
+  initialPrompt?: string;
+  initialPromptLabel?: string;
+  initialPromptDescription?: string;
 }
 
 export default function AssistantPanel({
@@ -36,27 +40,40 @@ export default function AssistantPanel({
   placeholder,
   emptyHint,
   suggestions = [],
+  initialPrompt,
+  initialPromptLabel,
+  initialPromptDescription,
 }: AssistantPanelProps) {
   const { isAuthenticated, loginUrl } = useRequireAuth();
   const [messages, setMessages] = useState<PanelMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [activities, setActivities] = useState<ToolActivity[]>([]);
+  const [initialSent, setInitialSent] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const contextRef = useRef(context);
+  contextRef.current = context;
 
   useEffect(() => {
     const el = scrollContainerRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages, loading]);
 
-  async function sendMessage(prefilled?: string) {
-    const content = (prefilled || input).trim();
+  useEffect(() => {
+    setMessages([]);
+    setActivities([]);
+    setInitialSent(false);
+    setLoading(false);
+  }, [context]);
+
+  const doSend = useCallback(async (content: string, opts?: { hidden?: boolean }) => {
     if (!content || loading) return;
 
     const userMessage: PanelMessage = {
       id: generateId(),
       role: "user",
       content,
+      hidden: opts?.hidden,
     };
 
     setInput("");
@@ -67,15 +84,14 @@ export default function AssistantPanel({
     try {
       const assistantId = generateId();
       let created = false;
+      const allMessages = [...messages, userMessage];
+
       await readAssistantStream(
         {
           surface,
           locale,
-          context,
-          messages: [...messages, userMessage].map((message) => ({
-            role: message.role,
-            content: message.content,
-          })),
+          context: contextRef.current,
+          messages: allMessages.map((m) => ({ role: m.role, content: m.content })),
         },
         (event) => {
           if (event.type === "text_delta") {
@@ -88,10 +104,10 @@ export default function AssistantPanel({
               return;
             }
             setMessages((prev) =>
-              prev.map((message) =>
-                message.id === assistantId
-                  ? { ...message, content: message.content + (event.text || "") }
-                  : message
+              prev.map((m) =>
+                m.id === assistantId
+                  ? { ...m, content: m.content + (event.text || "") }
+                  : m
               )
             );
           }
@@ -100,17 +116,17 @@ export default function AssistantPanel({
             const toolName = event.toolName;
             setActivities((prev) => [
               ...prev,
-              { id: `${toolName}-${prev.length}`, toolName, status: "running" },
+              { id: `${toolName}-${prev.length}`, toolName, status: "running", args: event.args },
             ]);
           }
 
           if (event.type === "tool_result" && event.toolName) {
             const toolName = event.toolName;
             setActivities((prev) =>
-              prev.map((activity) =>
-                activity.toolName === toolName && activity.status === "running"
-                  ? { ...activity, status: "done" }
-                  : activity
+              prev.map((a) =>
+                a.toolName === toolName && a.status === "running"
+                  ? { ...a, status: "done" }
+                  : a
               )
             );
           }
@@ -123,7 +139,7 @@ export default function AssistantPanel({
         },
       );
 
-      setActivities((prev) => prev.map((activity) => ({ ...activity, status: "done" })));
+      setActivities((prev) => prev.map((a) => ({ ...a, status: "done" })));
     } catch (error) {
       setMessages((prev) => [
         ...prev,
@@ -140,6 +156,17 @@ export default function AssistantPanel({
     } finally {
       setLoading(false);
     }
+  }, [loading, messages, surface, locale]);
+
+  function sendMessage(prefilled?: string) {
+    const content = (prefilled || input).trim();
+    void doSend(content);
+  }
+
+  function triggerInitialAnalysis() {
+    if (!initialPrompt || initialSent) return;
+    setInitialSent(true);
+    void doSend(initialPrompt, { hidden: true });
   }
 
   if (!isAuthenticated) {
@@ -165,6 +192,9 @@ export default function AssistantPanel({
     );
   }
 
+  const hasInitialPrompt = Boolean(initialPrompt);
+  const showInitialButton = hasInitialPrompt && !initialSent && messages.length === 0;
+
   return (
     <div className="card">
       <h3 className="section-title flex items-center gap-2">
@@ -173,9 +203,21 @@ export default function AssistantPanel({
       </h3>
 
       <div className="space-y-4">
+        {showInitialButton && (
+          <div className="text-center py-4">
+            {initialPromptDescription && (
+              <p className="text-sm text-gray-500 mb-4">{initialPromptDescription}</p>
+            )}
+            <button onClick={triggerInitialAnalysis} className="btn-primary inline-flex items-center gap-2">
+              <Sparkles className="w-4 h-4" />
+              {initialPromptLabel || (locale === "es" ? "Analizar con IA" : "Analyze with AI")}
+            </button>
+          </div>
+        )}
+
         <ToolActivityPanel activities={activities} locale={locale} />
 
-        {messages.length === 0 && (
+        {!showInitialButton && messages.length === 0 && !loading && (
           <div className="rounded-lg border border-aoe-border/60 bg-aoe-dark/40 p-4">
             {emptyHint && <p className="text-sm text-gray-400 leading-relaxed">{emptyHint}</p>}
             {suggestions.length > 0 && (
@@ -194,8 +236,8 @@ export default function AssistantPanel({
           </div>
         )}
 
-        <div ref={scrollContainerRef} className="space-y-3 max-h-[420px] overflow-y-auto">
-          {messages.map((message) => (
+        <div ref={scrollContainerRef} className="space-y-3 max-h-[520px] overflow-y-auto">
+          {messages.filter((m) => !m.hidden).map((message) => (
             <div
               key={message.id}
               className={cn(
@@ -213,32 +255,34 @@ export default function AssistantPanel({
             </div>
           ))}
 
-          {loading && (
+          {loading && messages.filter((m) => !m.hidden && m.role === "assistant").length === 0 && activities.length === 0 && (
             <div className="mr-auto rounded-xl border border-aoe-border bg-aoe-dark p-4">
               <Loader2 className="w-5 h-5 animate-spin text-aoe-accent" />
             </div>
           )}
         </div>
 
-        <div className="flex gap-3">
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void sendMessage();
-            }}
-            disabled={loading}
-            placeholder={placeholder}
-            className="input-field flex-1"
-          />
-          <button
-            onClick={() => void sendMessage()}
-            disabled={loading || !input.trim()}
-            className="btn-primary !px-4 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Send className="w-5 h-5" />
-          </button>
-        </div>
+        {(initialSent || !hasInitialPrompt || messages.length > 0) && (
+          <div className="flex gap-3">
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void sendMessage();
+              }}
+              disabled={loading}
+              placeholder={placeholder}
+              className="input-field flex-1"
+            />
+            <button
+              onClick={() => void sendMessage()}
+              disabled={loading || !input.trim()}
+              className="btn-primary !px-4 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Send className="w-5 h-5" />
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

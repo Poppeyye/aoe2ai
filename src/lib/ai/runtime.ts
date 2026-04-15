@@ -324,26 +324,31 @@ export async function* streamTextResponse({
       return;
     }
 
-    const toolOutputs = [];
-    for (const call of Array.from(functionCalls.values())) {
-      const parsedArgs = call.arguments ? JSON.parse(call.arguments) : {};
-      yield {
-        type: "tool_call",
-        toolName: call.name,
-        args: parsedArgs,
-      };
-      const output = await executeTool(call.name, parsedArgs, { locale });
-      yield {
-        type: "tool_result",
-        toolName: call.name,
-        output,
-      };
-      toolOutputs.push({
-        type: "function_call_output" as const,
-        call_id: call.call_id,
-        output,
-      });
+    const calls = Array.from(functionCalls.values()).map((call) => ({
+      ...call,
+      parsedArgs: call.arguments ? JSON.parse(call.arguments) : {},
+    }));
+
+    for (const call of calls) {
+      yield { type: "tool_call", toolName: call.name, args: call.parsedArgs };
     }
+
+    const toolOutputs = await Promise.all(
+      calls.map(async (call) => {
+        const output = await executeTool(call.name, call.parsedArgs, { locale });
+        return { call, output };
+      }),
+    );
+
+    for (const { call, output } of toolOutputs) {
+      yield { type: "tool_result", toolName: call.name, output };
+    }
+
+    nextInput = toolOutputs.map(({ call, output }) => ({
+      type: "function_call_output" as const,
+      call_id: call.call_id,
+      output,
+    }));
 
     nextInput = toolOutputs;
   }

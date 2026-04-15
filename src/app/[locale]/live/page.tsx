@@ -3,18 +3,13 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Radio, Search, Loader2, Swords, Shield, MapPin, Trophy,
-  TrendingUp, TrendingDown, Clock, Crown, X, Flame, Target, Sparkles, LogIn,
+  TrendingUp, TrendingDown, Clock, Crown, X, Flame, Target,
 } from "lucide-react";
-import Link from "next/link";
 import { cn, formatTime } from "@/lib/utils";
 import { useDictionary, useLocale } from "@/i18n/I18nProvider";
-import { useRequireAuth } from "@/hooks/useRequireAuth";
 import FavoriteButton from "@/components/ui/FavoriteButton";
 import KofiHint from "@/components/ui/KofiHint";
 import AssistantPanel from "@/components/ai/AssistantPanel";
-import ToolActivityPanel from "@/components/ai/ToolActivityPanel";
-import MarkdownMessage from "@/components/ai/MarkdownMessage";
-import { useStreamedAssistant } from "@/components/ai/useStreamedAssistant";
 
 interface ScoutProfile {
   name: string;
@@ -85,8 +80,6 @@ export default function LivePage() {
   const dict = useDictionary();
   const locale = useLocale();
   const d = dict.live;
-  const { isAuthenticated, loginUrl } = useRequireAuth();
-
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<PlayerSuggestion[]>([]);
   const [sugLoading, setSugLoading] = useState(false);
@@ -168,23 +161,6 @@ export default function LivePage() {
       day: "numeric",
     });
   }
-
-  const [aiRequested, setAiRequested] = useState(false);
-
-  useEffect(() => {
-    setAiRequested(false);
-  }, [scoutData?.profile?.profileId]);
-
-  const streamedAnalysis = useStreamedAssistant({
-    surface: "live",
-    locale: locale === "es" ? "es" : "en",
-    context: scoutData,
-    prompt: locale === "es"
-      ? "Analiza a este rival de ranked 1v1 y dame 4 consejos tácticos concretos para explotarlo."
-      : "Analyze this ranked 1v1 opponent and give me 4 concrete tactical tips to exploit their tendencies.",
-    enabled: Boolean(aiRequested && scoutData?.aiEnabled && scoutData),
-    resetKey: scoutData ? `${scoutData.profile.profileId}-${locale}-${aiRequested}` : `empty-${locale}`,
-  });
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
@@ -320,29 +296,19 @@ export default function LivePage() {
           </div>
 
           <CivRecommendations recommendations={scoutData.civRecommendations} d={d} />
-          <AiAnalysis
-            analysis={aiRequested ? (scoutData.aiEnabled ? streamedAnalysis.text : scoutData.aiAnalysis) : null}
-            loading={aiRequested ? streamedAnalysis.loading : false}
-            error={aiRequested ? streamedAnalysis.error : null}
-            activities={aiRequested ? streamedAnalysis.activities : []}
-            onRetry={() => void streamedAnalysis.retry()}
-            aiEnabled={Boolean(scoutData.aiEnabled)}
-            aiRequested={aiRequested}
-            onRequestAi={() => setAiRequested(true)}
-            isAuthenticated={isAuthenticated}
-            loginUrl={loginUrl}
-            locale={locale === "es" ? "es" : "en"}
-            d={d}
-          />
           <AssistantPanel
             surface="live"
             locale={locale === "es" ? "es" : "en"}
             context={scoutData}
-            title={locale === "es" ? "Pregúntale a la IA sobre este rival" : "Ask the AI about this opponent"}
+            title={d.ai_analysis}
             placeholder={locale === "es" ? "Pregunta sobre openings, counters, mapas..." : "Ask about openings, counters, maps..."}
-            emptyHint={locale === "es"
-              ? "Usa el contexto de scouting actual para pedir planes de partida, adaptaciones por mapa o cómo castigar sus civs favoritas."
-              : "Use the current scout context to ask for game plans, map-specific adaptations, or how to punish this player's comfort civilizations."}
+            initialPrompt={locale === "es"
+              ? "Analiza a este rival y dame 4 consejos tácticos concretos para explotarlo, considerando sus civilizaciones favoritas, mapas más jugados, racha reciente y estilo de juego."
+              : "Analyze this opponent and give me 4 concrete tactical tips to exploit their tendencies, considering their favorite civilizations, most-played maps, recent form, and play style."}
+            initialPromptLabel={locale === "es" ? "Analizar con IA" : "Analyze with AI"}
+            initialPromptDescription={locale === "es"
+              ? "Lanza el análisis de IA para obtener consejos tácticos personalizados. Después podrás hacer preguntas de seguimiento."
+              : "Run the AI analysis to get personalized tactical advice. You can ask follow-up questions after."}
             suggestions={locale === "es"
               ? [
                 "¿Qué opening me recomiendas contra este rival?",
@@ -642,107 +608,6 @@ function CivRecommendations({
           </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-/* ─── AI Analysis ─── */
-
-function AiAnalysis({
-  analysis,
-  loading,
-  error,
-  activities,
-  onRetry,
-  aiEnabled,
-  aiRequested,
-  onRequestAi,
-  isAuthenticated,
-  loginUrl,
-  locale,
-  d,
-}: {
-  analysis: string | null;
-  loading: boolean;
-  error: string | null;
-  activities: import("@/components/ai/ToolActivityPanel").ToolActivity[];
-  onRetry: () => void;
-  aiEnabled: boolean;
-  aiRequested: boolean;
-  onRequestAi: () => void;
-  isAuthenticated: boolean;
-  loginUrl: string;
-  locale: "en" | "es";
-  d: Record<string, string>;
-}) {
-  return (
-    <div className="card">
-      <h3 className="section-title flex items-center gap-2">
-        <Sparkles className="w-5 h-5 text-purple-400" />
-        {d.ai_analysis}
-      </h3>
-      {!isAuthenticated ? (
-        <div className="text-center py-6">
-          <LogIn className="w-8 h-8 text-aoe-accent mx-auto mb-3" />
-          <p className="text-sm text-gray-300 mb-4">
-            {locale === "es"
-              ? "Inicia sesión para utilizar el análisis de IA"
-              : "Sign in to use AI analysis"}
-          </p>
-          <Link href={loginUrl} className="btn-primary inline-flex items-center gap-2 text-sm">
-            <LogIn className="w-4 h-4" />
-            {locale === "es" ? "Iniciar sesión" : "Sign in"}
-          </Link>
-        </div>
-      ) : !aiRequested && aiEnabled ? (
-        <div className="text-center py-6">
-          <p className="text-sm text-gray-500 mb-4">
-            {locale === "es"
-              ? "Lanza el análisis de IA para obtener consejos tácticos personalizados."
-              : "Run the AI analysis to get personalized tactical advice."}
-          </p>
-          <button onClick={onRequestAi} className="btn-primary inline-flex items-center gap-2">
-            <Sparkles className="w-4 h-4" />
-            {locale === "es" ? "Analizar con IA" : "Analyze with AI"}
-          </button>
-        </div>
-      ) : (
-        <>
-          <div className="space-y-4">
-            <ToolActivityPanel activities={activities} locale={locale} />
-            {loading && !analysis && (
-              <div className="flex items-start gap-3 rounded-lg bg-aoe-dark/50 border border-aoe-border/50 px-4 py-3">
-                <Loader2 className="w-5 h-5 animate-spin text-aoe-accent mt-0.5 shrink-0" />
-                <p className="text-sm text-gray-400">
-                  {locale === "es" ? "La IA está analizando el scout en tiempo real..." : "The AI is analyzing the scout in real time..."}
-                </p>
-              </div>
-            )}
-            {error && (
-              <div className="flex items-start justify-between gap-3 rounded-lg bg-red-500/5 border border-red-500/20 px-4 py-3">
-                <p className="text-sm text-red-300">{error}</p>
-                <button onClick={onRetry} className="text-xs text-red-200 hover:text-white transition-colors">
-                  {locale === "es" ? "Reintentar" : "Retry"}
-                </button>
-              </div>
-            )}
-          </div>
-          {analysis ? (
-            <MarkdownMessage content={analysis} />
-          ) : !aiEnabled ? (
-            <div className="flex items-start gap-3 rounded-lg bg-aoe-dark/50 border border-aoe-border/50 px-4 py-3">
-              <Sparkles className="w-5 h-5 text-gray-600 mt-0.5 shrink-0" />
-              <p className="text-sm text-gray-500">{d.ai_unavailable}</p>
-            </div>
-          ) : null}
-          {loading && analysis ? (
-            <div className="mt-3 flex items-center gap-2 text-xs text-gray-500">
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-aoe-accent" />
-              {locale === "es" ? "Generando más detalles..." : "Generating more detail..."}
-            </div>
-          ) : null}
-        </>
-      )}
     </div>
   );
 }

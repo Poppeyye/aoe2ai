@@ -16,6 +16,7 @@ export interface ToolActivity {
   id: string;
   toolName: string;
   status: "running" | "done";
+  args?: Record<string, unknown>;
 }
 
 const TOOL_META = {
@@ -56,15 +57,31 @@ const TOOL_META = {
   },
 } as const;
 
-function getToolMeta(toolName: string, locale: "en" | "es") {
+function getToolLabel(toolName: string, locale: "en" | "es", args?: Record<string, unknown>): string {
   const meta = TOOL_META[toolName as keyof typeof TOOL_META];
-  if (meta) return meta;
+  const base = meta ? (locale === "es" ? meta.es : meta.en) : (locale === "es" ? "Procesando solicitud..." : "Processing request...");
 
-  return {
-    icon: ScrollText,
-    en: "Processing request...",
-    es: "Procesando solicitud...",
-  };
+  if (!args) return base;
+
+  if (toolName === "get_civilization_details" && args.civilization) {
+    return `${base}: ${String(args.civilization)}`;
+  }
+  if (toolName === "compare_civilizations" && args.civ1 && args.civ2) {
+    return `${base}: ${String(args.civ1)} vs ${String(args.civ2)}`;
+  }
+  if (toolName === "lookup_player_profiles" && args.name) {
+    return `${base}: ${String(args.name)}`;
+  }
+  if (toolName === "scout_opponent" && args.name) {
+    return `${base}: ${String(args.name)}`;
+  }
+
+  return base;
+}
+
+function getToolIcon(toolName: string) {
+  const meta = TOOL_META[toolName as keyof typeof TOOL_META];
+  return meta?.icon || ScrollText;
 }
 
 export default function ToolActivityPanel({
@@ -84,47 +101,51 @@ export default function ToolActivityPanel({
       </div>
       <div className="space-y-2">
         {activities.map((activity) => {
-          const meta = getToolMeta(activity.toolName, locale);
-          const Icon = meta.icon;
+          const Icon = getToolIcon(activity.toolName);
+          const label = getToolLabel(activity.toolName, locale, activity.args);
+          const isDone = activity.status === "done";
+
           return (
             <div
               key={activity.id}
               className={cn(
                 "aoe-tool-card flex items-center gap-3 rounded-lg border px-3 py-2",
-                activity.status === "running"
-                  ? "border-aoe-accent/30 bg-aoe-accent/5"
-                  : "border-aoe-border/60 bg-aoe-card/60"
+                isDone
+                  ? "border-aoe-border/60 bg-aoe-card/60"
+                  : "border-aoe-accent/30 bg-aoe-accent/5"
               )}
             >
               <div
                 className={cn(
-                  "flex h-8 w-8 items-center justify-center rounded-full border",
-                  activity.status === "running"
-                    ? "border-aoe-accent/40 text-aoe-accent"
-                    : "border-green-500/30 text-green-400"
+                  "flex h-8 w-8 items-center justify-center rounded-full border shrink-0",
+                  isDone
+                    ? "border-green-500/30 text-green-400"
+                    : "border-aoe-accent/40 text-aoe-accent"
                 )}
               >
                 <Icon className="h-4 w-4" />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-sm text-gray-200">
-                  {locale === "es" ? meta.es : meta.en}
-                </div>
+                <div className="text-sm text-gray-200 truncate">{label}</div>
                 <div className="text-xs text-gray-500">
-                  {activity.status === "running"
-                    ? locale === "es"
-                      ? "Obteniendo resultados..."
-                      : "Fetching results..."
-                    : locale === "es"
-                      ? "✓ Completado"
-                      : "✓ Complete"}
+                  {isDone
+                    ? (locale === "es" ? "✓ Completado" : "✓ Complete")
+                    : (locale === "es" ? "Obteniendo resultados..." : "Fetching results...")}
                 </div>
               </div>
-              <div className="flex items-center gap-1">
-                <span className={cn("aoe-tool-dot", activity.status === "done" && "bg-green-400")} />
-                <span className={cn("aoe-tool-dot aoe-tool-dot-delay-1", activity.status === "done" && "bg-green-400")} />
-                <span className={cn("aoe-tool-dot aoe-tool-dot-delay-2", activity.status === "done" && "bg-green-400")} />
-              </div>
+              {isDone ? (
+                <div className="flex items-center gap-1">
+                  <span className="aoe-tool-dot aoe-tool-dot-done" />
+                  <span className="aoe-tool-dot aoe-tool-dot-done" />
+                  <span className="aoe-tool-dot aoe-tool-dot-done" />
+                </div>
+              ) : (
+                <div className="flex items-center gap-1">
+                  <span className="aoe-tool-dot" />
+                  <span className="aoe-tool-dot aoe-tool-dot-delay-1" />
+                  <span className="aoe-tool-dot aoe-tool-dot-delay-2" />
+                </div>
+              )}
             </div>
           );
         })}
