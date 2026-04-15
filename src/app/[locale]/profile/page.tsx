@@ -245,6 +245,9 @@ export default function ProfilePage() {
     setDetecting(true);
     setConnectionState("connecting");
     setLiveMatch(null);
+    setScoutData(null);
+    setAiText("");
+    setAiActivities([]);
 
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
@@ -266,35 +269,45 @@ export default function ProfilePage() {
       const match = JSON.parse(e.data) as LiveMatch;
       setLiveMatch(match);
       setConnectionState("match_found");
+      // Stop listening once match is found
+      es.close();
+      eventSourceRef.current = null;
+      setDetecting(false);
     });
 
     es.addEventListener("ping", () => {
-      if (connectionState !== "match_found") {
-        setConnectionState("connected");
-      }
+      setConnectionState((prev) => prev !== "match_found" ? "connected" : prev);
     });
 
     es.onerror = () => {
-      setConnectionState("disconnected");
-      es.close();
-      setTimeout(() => {
-        if (detecting) startMatchDetection();
-      }, 5000);
+      if (eventSourceRef.current === es) {
+        setConnectionState("disconnected");
+        es.close();
+        eventSourceRef.current = null;
+        setDetecting(false);
+      }
     };
 
     es.onopen = () => {
       setConnectionState("connected");
     };
-  }, [linkedProfile, detecting, connectionState]);
+  }, [linkedProfile, detecting]);
 
   function stopMatchDetection() {
     setDetecting(false);
     setConnectionState("disconnected");
-    setLiveMatch(null);
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
       eventSourceRef.current = null;
     }
+  }
+
+  function resetDetection() {
+    setLiveMatch(null);
+    setScoutData(null);
+    setAiText("");
+    setAiActivities([]);
+    setConnectionState("disconnected");
   }
 
   useEffect(() => {
@@ -305,6 +318,7 @@ export default function ProfilePage() {
     };
   }, []);
 
+  // Auto-fetch opponent stats when match is found (not AI — just data)
   useEffect(() => {
     if (!liveMatch || scouting || scoutData) return;
 
@@ -320,45 +334,54 @@ export default function ProfilePage() {
     setScouting(true);
     fetch(`/api/live?profileId=${opponent.profileid}&locale=${locale}`)
       .then((r) => r.json())
-      .then(async (data) => {
-        setScoutData(data);
-        const myCiv = Object.values(liveMatch.slots).find(
-          (s) => s.profileid === myId,
-        );
-        const myCivName = myCiv ? getCivName(myCiv.civilization) : "Unknown";
-        const oppCivName = getCivName(opponent.civilization);
-        const prompt = locale === "es"
-          ? `Analiza este enfrentamiento ranked. Yo juego ${myCivName} vs ${oppCivName} (${data.profile?.name}) en ${liveMatch.map_name}. Perfil del rival: Rating ${data.profile?.rating}, WR ${data.profile?.wins}W/${data.profile?.losses}L, racha ${data.profile?.streak}. Sus civs más jugadas: ${data.civStats?.slice(0, 3).map((c: CivStat) => `${c.civName} (${c.winRate}%)`).join(", ")}. Dame un análisis táctico rápido y build order recomendado.`
-          : `Analyze this ranked matchup. I'm playing ${myCivName} vs ${oppCivName} (${data.profile?.name}) on ${liveMatch.map_name}. Opponent profile: Rating ${data.profile?.rating}, WR ${data.profile?.wins}W/${data.profile?.losses}L, streak ${data.profile?.streak}. Their top civs: ${data.civStats?.slice(0, 3).map((c: CivStat) => `${c.civName} (${c.winRate}%)`).join(", ")}. Give me a quick tactical analysis and recommended build order.`;
-
-        setAiLoading(true);
-        setAiText("");
-        setAiActivities([]);
-        try {
-          await readAssistantStream(
-            { surface: "live", locale: locale as "en" | "es", context: data, messages: [{ role: "user", content: prompt }] },
-            (event: ClientAssistantStreamEvent) => {
-              if (event.type === "text_delta") {
-                setAiText((prev) => prev + (event.text || ""));
-              } else if (event.type === "tool_call" && event.toolName) {
-                const toolName = event.toolName;
-                setAiActivities((prev) => [...prev, { id: `${toolName}-${prev.length}`, toolName, status: "running" }]);
-              } else if (event.type === "tool_result" && event.toolName) {
-                const toolName = event.toolName;
-                setAiActivities((prev) => prev.map((a) => a.toolName === toolName && a.status === "running" ? { ...a, status: "done" } : a));
-              }
-            },
-          );
-          setAiActivities((prev) => prev.map((a) => ({ ...a, status: "done" })));
-        } catch {
-          // AI analysis failed silently
-        } finally {
-          setAiLoading(false);
-        }
-      })
+      .then((data) => setScoutData(data))
       .catch(() => {})
       .finally(() => setScouting(false));
   }, [liveMatch, linkedProfile, scouting, scoutData, locale]);
+
+  const runAiAnalysis = useCallback(async () => {
+    if (!liveMatch || !scoutData || !linkedProfile?.profileId) return;
+
+    const myId = linkedProfile.profileId;
+    const myCiv = Object.values(liveMatch.slots).find((s) => s.profileid === myId);
+    const opponent = Object.values(liveMatch.slots).find(
+      (s) => s.profileid && s.profileid !== myId && s.status === 3,
+    );
+    const myCivName = myCiv ? getCivName(myCiv.civilization) : "Unknown";
+    const oppCivName = opponent ? getCivName(opponent.civilization) : "Unknown";
+    const sd = scoutData as Record<string, unknown>;
+    const profile = sd.profile as Record<string, unknown> | undefined;
+    const civs = sd.civStats as CivStat[] | undefined;
+
+    const prompt = locale === "es"
+      ? `Analiza este enfrentamiento ranked. Yo juego ${myCivName} vs ${oppCivName} (${profile?.name}) en ${liveMatch.map_name}. Perfil del rival: Rating ${profile?.rating}, WR ${profile?.wins}W/${profile?.losses}L, racha ${profile?.streak}. Sus civs más jugadas: ${civs?.slice(0, 3).map((c) => `${c.civName} (${c.winRate}%)`).join(", ")}. Dame un análisis táctico rápido y build order recomendado.`
+      : `Analyze this ranked matchup. I'm playing ${myCivName} vs ${oppCivName} (${profile?.name}) on ${liveMatch.map_name}. Opponent profile: Rating ${profile?.rating}, WR ${profile?.wins}W/${profile?.losses}L, streak ${profile?.streak}. Their top civs: ${civs?.slice(0, 3).map((c) => `${c.civName} (${c.winRate}%)`).join(", ")}. Give me a quick tactical analysis and recommended build order.`;
+
+    setAiLoading(true);
+    setAiText("");
+    setAiActivities([]);
+    try {
+      await readAssistantStream(
+        { surface: "live", locale: locale as "en" | "es", context: scoutData, messages: [{ role: "user", content: prompt }] },
+        (event: ClientAssistantStreamEvent) => {
+          if (event.type === "text_delta") {
+            setAiText((prev) => prev + (event.text || ""));
+          } else if (event.type === "tool_call" && event.toolName) {
+            const toolName = event.toolName;
+            setAiActivities((prev) => [...prev, { id: `${toolName}-${prev.length}`, toolName, status: "running" }]);
+          } else if (event.type === "tool_result" && event.toolName) {
+            const toolName = event.toolName;
+            setAiActivities((prev) => prev.map((a) => a.toolName === toolName && a.status === "running" ? { ...a, status: "done" } : a));
+          }
+        },
+      );
+      setAiActivities((prev) => prev.map((a) => ({ ...a, status: "done" })));
+    } catch {
+      // AI analysis failed
+    } finally {
+      setAiLoading(false);
+    }
+  }, [liveMatch, scoutData, linkedProfile, locale]);
 
   if (authLoading || profileLoading) {
     return (
@@ -473,6 +496,8 @@ export default function ProfilePage() {
             aiLoading={aiLoading}
             onStart={startMatchDetection}
             onStop={stopMatchDetection}
+            onReset={resetDetection}
+            onAnalyze={runAiAnalysis}
             locale={locale as "en" | "es"}
           />
 
@@ -747,6 +772,8 @@ function LiveMatchPanel({
   aiLoading,
   onStart,
   onStop,
+  onReset,
+  onAnalyze,
   locale,
 }: {
   t: Record<string, string>;
@@ -761,6 +788,8 @@ function LiveMatchPanel({
   aiLoading: boolean;
   onStart: () => void;
   onStop: () => void;
+  onReset: () => void;
+  onAnalyze: () => void;
   locale: "en" | "es";
 }) {
   const myId = linkedProfile.profileId;
@@ -771,6 +800,13 @@ function LiveMatchPanel({
   const opponentSlot = liveMatch
     ? Object.values(liveMatch.slots).find((s) => s.profileid && s.profileid !== myId && s.status === 3)
     : null;
+
+  const oppProfile = scoutData?.profile as Record<string, unknown> | undefined;
+  const oppCivStats = scoutData?.civStats as CivStat[] | undefined;
+  const oppMapStats = scoutData?.mapStats as { map: string; games: number; wins: number; losses: number }[] | undefined;
+  const oppRecentForm = scoutData?.recentForm as string[] | undefined;
+
+  const aiStarted = aiText.length > 0 || aiLoading;
 
   return (
     <div className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 backdrop-blur-sm border border-amber-900/30 rounded-xl p-6">
@@ -791,9 +827,14 @@ function LiveMatchPanel({
              connectionState === "connecting" ? t.detecting :
              t.disconnected.split("—")[0]}
           </span>
-          {!detecting ? (
-            <button onClick={onStart} className="btn-primary text-sm !px-4 !py-2">
-              {t.detecting}
+          {liveMatch ? (
+            <button onClick={onReset} className="btn-secondary text-sm !px-4 !py-2">
+              {locale === "es" ? "Nueva búsqueda" : "New search"}
+            </button>
+          ) : !detecting ? (
+            <button onClick={onStart} className="btn-primary text-sm !px-4 !py-2 flex items-center gap-1.5">
+              <Radio className="w-3.5 h-3.5" />
+              {locale === "es" ? "Escuchar" : "Listen"}
             </button>
           ) : (
             <button onClick={onStop} className="btn-secondary text-sm !px-4 !py-2 !border-red-500/30 !text-red-400">
@@ -830,11 +871,10 @@ function LiveMatchPanel({
                 {t.match_found}
               </span>
               <span className="text-xs text-slate-500">
-                {liveMatch.map_name} • {SERVER_REGIONS[liveMatch.server] || `Server ${liveMatch.server}`}
+                {liveMatch.map_name} &bull; {SERVER_REGIONS[liveMatch.server] || `Server ${liveMatch.server}`}
               </span>
             </div>
 
-            {/* Player vs Opponent */}
             <div className="flex items-center justify-between gap-4">
               <div className="flex-1 text-center">
                 <div className="text-sm font-bold text-amber-100">{linkedProfile.name}</div>
@@ -858,25 +898,129 @@ function LiveMatchPanel({
             </div>
           </div>
 
-          {/* Auto Scout */}
+          {/* Opponent Data */}
           {scouting && (
-            <div className="flex items-center gap-2 text-amber-400 text-sm">
+            <div className="flex items-center gap-2 text-amber-400 text-sm py-4 justify-center">
               <Loader2 className="w-4 h-4 animate-spin" /> {t.scouting}
             </div>
           )}
 
-          {scoutData && (
-            <div className="bg-slate-900/60 rounded-lg p-4">
-              <h4 className="text-sm font-bold text-amber-100 mb-2 flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-amber-500" /> {t.auto_scout}
+          {scoutData && oppProfile && (
+            <div className="bg-slate-900/60 rounded-lg p-4 space-y-4">
+              <h4 className="text-sm font-bold text-amber-100 flex items-center gap-2">
+                <Target className="w-4 h-4 text-amber-500" />
+                {locale === "es" ? "Datos del rival" : "Opponent Intel"}
               </h4>
-              {aiActivities.length > 0 && (
-                <ToolActivityPanel activities={aiActivities} locale={locale as "en" | "es"} />
+
+              {/* Opponent stats row */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-slate-800/60 rounded-lg p-2.5 text-center">
+                  <div className="text-xs text-slate-500 mb-0.5">{t.rating}</div>
+                  <div className="text-lg font-bold text-amber-100">{String(oppProfile.rating ?? "—")}</div>
+                </div>
+                <div className="bg-slate-800/60 rounded-lg p-2.5 text-center">
+                  <div className="text-xs text-slate-500 mb-0.5">{t.rank}</div>
+                  <div className="text-lg font-bold text-amber-100">#{String(oppProfile.rank ?? "—")}</div>
+                </div>
+                <div className="bg-slate-800/60 rounded-lg p-2.5 text-center">
+                  <div className="text-xs text-slate-500 mb-0.5">{t.record}</div>
+                  <div className="text-sm font-bold text-amber-100">
+                    <span className="text-green-400">{String(oppProfile.wins ?? 0)}W</span>
+                    {" / "}
+                    <span className="text-red-400">{String(oppProfile.losses ?? 0)}L</span>
+                  </div>
+                </div>
+                <div className="bg-slate-800/60 rounded-lg p-2.5 text-center">
+                  <div className="text-xs text-slate-500 mb-0.5">{t.streak}</div>
+                  <div className={cn("text-lg font-bold", Number(oppProfile.streak ?? 0) >= 0 ? "text-green-400" : "text-red-400")}>
+                    {String(oppProfile.streak ?? 0)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Opponent recent form */}
+              {oppRecentForm && oppRecentForm.length > 0 && (
+                <div>
+                  <div className="text-xs text-slate-500 mb-1.5">{t.recent_form}</div>
+                  <div className="flex gap-1 flex-wrap">
+                    {oppRecentForm.slice(0, 15).map((r, i) => (
+                      <span key={i} className={cn(
+                        "w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold",
+                        r === "W" ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400",
+                      )}>
+                        {r}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               )}
-              {aiText && <MarkdownMessage content={aiText} />}
-              {aiLoading && !aiText && (
-                <div className="flex items-center gap-2 text-amber-400 text-sm py-2">
-                  <Loader2 className="w-4 h-4 animate-spin" /> {t.scouting}
+
+              {/* Top civs + top maps in columns */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {oppCivStats && oppCivStats.length > 0 && (
+                  <div>
+                    <div className="text-xs text-slate-500 mb-1.5">{locale === "es" ? "Civs favoritas" : "Top civs"}</div>
+                    <div className="space-y-1">
+                      {oppCivStats.slice(0, 5).map((c) => (
+                        <div key={c.civName} className="flex items-center justify-between text-xs py-1">
+                          <span className="text-slate-300">{c.civName}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-slate-500">{c.games}g</span>
+                            <span className={cn("font-medium", c.winRate >= 50 ? "text-green-400" : "text-red-400")}>
+                              {c.winRate}%
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {oppMapStats && oppMapStats.length > 0 && (
+                  <div>
+                    <div className="text-xs text-slate-500 mb-1.5">{locale === "es" ? "Mapas favoritos" : "Top maps"}</div>
+                    <div className="space-y-1">
+                      {oppMapStats.slice(0, 5).map((m) => {
+                        const wr = m.games > 0 ? Math.round((m.wins / m.games) * 100) : 0;
+                        return (
+                          <div key={m.map} className="flex items-center justify-between text-xs py-1">
+                            <span className="text-slate-300">{m.map}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-slate-500">{m.games}g</span>
+                              <span className={cn("font-medium", wr >= 50 ? "text-green-400" : "text-red-400")}>
+                                {wr}%
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* AI Analysis Button or Results */}
+              {!aiStarted ? (
+                <button
+                  onClick={onAnalyze}
+                  className="btn-primary w-full flex items-center justify-center gap-2 mt-2"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  {locale === "es" ? "Análisis táctico con IA" : "AI Tactical Analysis"}
+                </button>
+              ) : (
+                <div className="border-t border-slate-700/50 pt-4 mt-2">
+                  <h4 className="text-sm font-bold text-amber-100 mb-2 flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-amber-500" /> {t.auto_scout}
+                  </h4>
+                  {aiActivities.length > 0 && (
+                    <ToolActivityPanel activities={aiActivities} locale={locale} />
+                  )}
+                  {aiText && <MarkdownMessage content={aiText} />}
+                  {aiLoading && !aiText && (
+                    <div className="flex items-center gap-2 text-amber-400 text-sm py-2">
+                      <Loader2 className="w-4 h-4 animate-spin" /> {t.scouting}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
