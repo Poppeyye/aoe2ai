@@ -74,6 +74,19 @@ jobs:
           echo "=== Creating persistent data volume ==="
           docker volume create aoe2-data 2>/dev/null || true
 
+          echo "=== Pre-build disk check + cache prune ==="
+          df -h / | tail -1
+          # Keep only cache from the last 24h to avoid ENOSPC on small EC2 disks
+          docker builder prune -af --filter "until=24h" >/dev/null 2>&1 || true
+          # If still under 2G free, purge everything reclaimable
+          AVAIL_KB=$(df -k / | awk 'NR==2 {print $4}')
+          if [ "$AVAIL_KB" -lt 2097152 ]; then
+            echo "Less than 2G free, running full cache prune"
+            docker builder prune -af >/dev/null 2>&1 || true
+            docker image prune -af >/dev/null 2>&1 || true
+          fi
+          df -h / | tail -1
+
           echo "=== Building Docker image ==="
           docker build -t aoe2-next:new .
 

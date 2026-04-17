@@ -92,3 +92,27 @@ docker ps                     # running?
 docker logs aoe2 --tail 30    # recent logs
 docker exec aoe2 ls /app/data # data dir exists?
 ```
+
+### Build fails: `ENOSPC: no space left on device`
+
+The EC2 root volume is only 8G. Docker's BuildKit cache accumulates per build
+and fills the disk after a handful of deploys. Signs in the CI log:
+
+```
+npm warn tar TAR_ENTRY_ERROR ENOSPC: no space left on device
+ERROR: failed to solve: process "/bin/sh -c npm ci" did not complete successfully
+```
+
+The deploy workflow now auto-prunes cache older than 24h before building, and
+does a full prune if free space drops under 2G. Manual fix if needed:
+
+```bash
+# Get a fresh temp key valid for 60s
+aws ec2-instance-connect send-ssh-public-key \
+  --instance-id i-0208ce363c9ca15ba --region eu-west-1 \
+  --instance-os-user ec2-user \
+  --ssh-public-key file:///tmp/aoe2-tmp-key.pub
+
+ssh -i /tmp/aoe2-tmp-key ec2-user@52.212.188.247 \
+  'docker builder prune -af && df -h /'
+```
