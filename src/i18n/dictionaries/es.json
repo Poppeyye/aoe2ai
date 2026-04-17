@@ -10,7 +10,6 @@
     "replay": "Analizador de Replays",
     "techtree": "Árbol Tecnológico",
     "players": "Jugadores",
-    "tournaments": "Torneos",
     "live": "Scout",
     "learn": "Build Orders",
     "profile": "Mi Perfil",
@@ -57,8 +56,6 @@
     "tool_techtree_desc": "Explora todas las civilizaciones con sus bonus, unidades únicas y tecnologías. Compara dos civs lado a lado para planificar tu estrategia.",
     "tool_players_title": "Buscar Jugador",
     "tool_players_desc": "Navega el ranking oficial o busca cualquier jugador por ID. Consulta ELO, partidas recientes, cambios de rating y ratios de victoria.",
-    "tool_tournaments_title": "Torneos",
-    "tool_tournaments_desc": "Resultados en vivo, brackets y calendarios de los torneos más importantes de AoE2. Sigue Red Bull Wololo, T90 Titans League y más.",
     "tool_live_title": "Scout de Oponente",
     "tool_live_desc": "Busca a cualquier oponente antes de tu partida. Analiza sus civs favoritas, tasas de victoria, forma reciente y obtén recomendaciones tácticas con IA.",
     "tool_profile_title": "Mi Perfil",
@@ -177,19 +174,6 @@
     "technologies": "tecnologías",
     "exclusive_differences": "Diferencias Exclusivas",
     "only_has": "Solo {civ} tiene ({units} uds., {techs} tecns.)"
-  },
-  "tournaments": {
-    "title": "Torneos",
-    "subtitle": "Calendarios, premios y brackets de los eventos competitivos más importantes de AoE2. Datos obtenidos de Liquipedia.",
-    "all": "todos",
-    "ongoing": "en curso",
-    "upcoming": "próximos",
-    "completed": "finalizados",
-    "total": "Total",
-    "live_now": "En Vivo",
-    "starts_in": "Empieza en {days} día",
-    "starts_in_plural": "Empieza en {days} días",
-    "no_tournaments": "No se encontraron torneos para este filtro."
   },
   "live": {
     "title": "Scout de Oponente",

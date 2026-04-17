@@ -173,27 +173,6 @@ export interface TimelineEvent {
   description: string;
 }
 
-// ── Tournament ──
-
-export interface Tournament {
-  id: string;
-  name: string;
-  tier: string;
-  startDate: string;
-  endDate: string;
-  prizePool?: string;
-  status: "upcoming" | "ongoing" | "completed";
-  participants?: TournamentParticipant[];
-  liquipediaUrl?: string;
-}
-
-export interface TournamentParticipant {
-  name: string;
-  placement?: number;
-  prizeWon?: string;
-  country?: string;
-}
-
 // ── AI Agent ──
 
 export interface AgentMessage {

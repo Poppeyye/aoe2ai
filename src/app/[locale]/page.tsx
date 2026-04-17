@@ -4,7 +4,6 @@ import {
   Upload,
   BookOpen,
   Users,
-  Trophy,
   Radio,
   GraduationCap,
   UserCircle,
@@ -184,14 +183,6 @@ export default async function HomePage({
             icon={BookOpen}
             title={d.tool_techtree_title}
             desc={d.tool_techtree_desc}
-          />
-          <ToolCard
-            href={`/${locale}/tournaments`}
-            icon={Trophy}
-            title={d.tool_tournaments_title}
-            desc={d.tool_tournaments_desc}
-            tag="LIVE"
-            accent="green"
           />
         </div>
       </section>

@@ -8,7 +8,6 @@ const PAGES = [
   "/replay",
   "/techtree",
   "/players",
-  "/tournaments",
   "/live",
   "/learn",
   "/profile",

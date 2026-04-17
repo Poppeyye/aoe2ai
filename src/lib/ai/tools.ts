@@ -1,5 +1,4 @@
 import OpenAI from "openai";
-import { getTournaments } from "@/lib/api/liquipedia";
 import {
   fetchStrings,
   fetchTechTreeData,
@@ -19,8 +18,7 @@ export type AiToolName =
   | "lookup_player_profiles"
   | "scout_opponent"
   | "get_civilization_details"
-  | "compare_civilizations"
-  | "list_tournaments";
+  | "compare_civilizations";
 
 interface ToolContext {
   locale: AiLocale;
@@ -241,32 +239,6 @@ const tools: Record<AiToolName, RegisteredTool> = {
       });
     },
   ),
-  list_tournaments: defineTool(
-    "list_tournaments",
-    "List important AoE2 tournaments with names, tiers, dates, status, prize pools, and Liquipedia URLs.",
-    {
-      type: "object",
-      properties: {
-        status: {
-          type: "string",
-          enum: ["upcoming", "ongoing", "completed", "all"],
-          description: "Optional tournament status filter.",
-        },
-      },
-      required: ["status"],
-      additionalProperties: false,
-    },
-    async (args) => {
-      const status = typeof args.status === "string" ? args.status : "all";
-      const tournaments = await getTournaments();
-      return JSON.stringify({
-        status,
-        tournaments: tournaments
-          .filter((item) => status === "all" || item.status === status)
-          .slice(0, 12),
-      });
-    },
-  ),
 };
 
 const toolSets: Record<AiSurface, AiToolName[]> = {
@@ -275,7 +247,6 @@ const toolSets: Record<AiSurface, AiToolName[]> = {
     "scout_opponent",
     "get_civilization_details",
     "compare_civilizations",
-    "list_tournaments",
   ],
   live: [
     "scout_opponent",

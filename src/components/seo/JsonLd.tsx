@@ -39,14 +39,13 @@ export function WebApplicationJsonLd({ locale }: { locale: string }) {
     },
     description:
       locale === "es"
-        ? "Portal con IA para la comunidad de Age of Empires II: scouting de rivales, análisis de replays, árbol tecnológico interactivo, torneos y más."
-        : "AI-powered portal for the Age of Empires II community: opponent scouting, replay analysis, interactive tech tree, tournaments, and more.",
+        ? "Portal con IA para la comunidad de Age of Empires II: scouting de rivales, análisis de replays, árbol tecnológico interactivo y más."
+        : "AI-powered portal for the Age of Empires II community: opponent scouting, replay analysis, interactive tech tree, and more.",
     featureList: [
       "AI Opponent Scouting",
       "Replay Analysis",
       "Interactive Tech Tree",
       "Player Leaderboards",
-      "Tournament Tracker",
       "Build Order Guides",
       "AI Chat Assistant",
     ],

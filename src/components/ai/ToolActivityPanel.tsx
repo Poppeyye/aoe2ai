@@ -6,7 +6,6 @@ import {
   ScrollText,
   Shield,
   Swords,
-  Trophy,
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -38,11 +37,6 @@ const TOOL_META = {
     icon: Swords,
     en: "Comparing civilizations head-to-head",
     es: "Comparando civilizaciones cara a cara",
-  },
-  list_tournaments: {
-    icon: Trophy,
-    en: "Fetching tournament data",
-    es: "Obteniendo datos de torneos",
   },
   web_search: {
     icon: Globe,

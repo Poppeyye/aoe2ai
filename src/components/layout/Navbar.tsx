@@ -7,7 +7,7 @@ import { useSession, signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import {
   Menu, X, Swords, LogOut, User, Upload, BookOpen, Users,
-  Trophy, Radio, GraduationCap, UserCircle,
+  Radio, GraduationCap, UserCircle,
 } from "lucide-react";
 import { useDictionary, useLocale } from "@/i18n/I18nProvider";
 import LanguageSwitcher from "./LanguageSwitcher";
@@ -17,7 +17,6 @@ const NAV_KEYS = [
   { path: "/replay", key: "replay" as const, icon: Upload },
   { path: "/techtree", key: "techtree" as const, icon: BookOpen },
   { path: "/players", key: "players" as const, icon: Users },
-  { path: "/tournaments", key: "tournaments" as const, icon: Trophy },
   { path: "/live", key: "live" as const, icon: Radio },
   { path: "/learn", key: "learn" as const, icon: GraduationCap },
 ];

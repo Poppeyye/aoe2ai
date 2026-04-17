@@ -10,7 +10,6 @@
     "replay": "Replay Analyzer",
     "techtree": "Tech Tree",
     "players": "Players",
-    "tournaments": "Tournaments",
     "live": "Scout",
     "learn": "Build Orders",
     "profile": "My Profile",
@@ -57,8 +56,6 @@
     "tool_techtree_desc": "Browse all civilizations with their bonuses, unique units, and technologies. Compare two civs side-by-side to plan your strategy.",
     "tool_players_title": "Player Lookup",
     "tool_players_desc": "Browse the official leaderboard or look up any player by profile ID. View ELO, recent matches with civ picks, rating changes, and win rates.",
-    "tool_tournaments_title": "Tournaments",
-    "tool_tournaments_desc": "Live results, brackets, and schedules from the biggest AoE2 tournaments. Follow Red Bull Wololo, T90 Titans League, and more.",
     "tool_live_title": "Opponent Scout",
     "tool_live_desc": "Search any opponent before your match. Analyze their civ preferences, win rates, recent form, and get AI-powered tactical recommendations.",
     "tool_profile_title": "My Profile",
@@ -177,19 +174,6 @@
     "technologies": "technologies",
     "exclusive_differences": "Exclusive Differences",
     "only_has": "Only {civ} has ({units} units, {techs} techs)"
-  },
-  "tournaments": {
-    "title": "Tournaments",
-    "subtitle": "Schedules, prize pools, and brackets from top AoE2 competitive events. Data sourced from Liquipedia.",
-    "all": "all",
-    "ongoing": "ongoing",
-    "upcoming": "upcoming",
-    "completed": "completed",
-    "total": "Total",
-    "live_now": "Live Now",
-    "starts_in": "Starts in {days} day",
-    "starts_in_plural": "Starts in {days} days",
-    "no_tournaments": "No tournaments found for this filter."
   },
   "live": {
     "title": "Opponent Scout",
