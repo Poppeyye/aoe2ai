@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import {
   UserCircle, Search, Loader2, Trophy, TrendingUp, TrendingDown,
   Swords, Shield, Crown, Flame, Wifi, WifiOff, Radio,
-  Link2, X, Target, Sparkles, LogIn, ChevronRight,
+  Link2, X, Target, Sparkles, LogIn, ChevronRight, Clock, MapPin, History,
 } from "lucide-react";
 import Link from "next/link";
 import { cn, formatTime } from "@/lib/utils";
@@ -15,6 +15,7 @@ import MarkdownMessage from "@/components/ai/MarkdownMessage";
 import { readAssistantStream, type ClientAssistantStreamEvent } from "@/components/ai/chat-stream";
 import KofiHint from "@/components/ui/KofiHint";
 import { getCivName, SERVER_REGIONS } from "@/lib/aoe2/civs";
+import { PlaystyleBadge, RatingSparkline, formatRelativeTime } from "@/components/scout/OpponentExtras";
 
 interface LinkedProfile {
   linked: boolean;
@@ -341,7 +342,7 @@ export default function ProfilePage() {
     Promise.all(
       opponents.map(async (slot) => {
         try {
-          const res = await fetch(`/api/live?profileId=${slot.profileid}&locale=${locale}&lb=${lb}`);
+          const res = await fetch(`/api/live?profileId=${slot.profileid}&locale=${locale}&lb=${lb}&vs=${myId}`);
           const data = await res.json();
           return { slot, data };
         } catch {
@@ -987,25 +988,137 @@ function LiveMatchPanel({
                 const maps = opp.data.mapStats as { map: string; games: number; wins: number; losses: number }[] | undefined;
                 const form = opp.data.recentForm as string[] | undefined;
                 const avgDuration = opp.data.avgGameDuration as number | undefined;
+                const recentMatchesList = opp.data.recentMatches as Array<{ map: string; won: boolean; civ: string; ratingChange: number; date: number }> | undefined;
+                const civRecs = opp.data.civRecommendations as Array<{ civ: string; reason: string }> | undefined;
+                const playstyle = opp.data.playstyle as "cavalry" | "archers" | "infantry" | "camels" | "siege" | "gunpowder" | "navy" | "flex" | "boom" | null | undefined;
+                const ratingHistory = opp.data.ratingHistory as number[] | undefined;
+                const headToHead = opp.data.headToHead as {
+                  totalGames: number; wins: number; losses: number; lastEncounter: number | null;
+                  recent: Array<{ map: string; won: boolean; myCiv: string; opponentCiv: string; date: number; ratingChange: number }>;
+                } | null | undefined;
+                const clan = typeof p?.clan === "string" ? p.clan : null;
+                const primaryLb = isTeamGame ? rmTeam : rm1v1;
+                const lastMatchTime = primaryLb?.lastMatchTime;
+                const lastMatchTs = typeof lastMatchTime === "string" && lastMatchTime
+                  ? Math.floor(new Date(lastMatchTime).getTime() / 1000)
+                  : null;
+                const rankCountry = Number(primaryLb?.rankCountry ?? 0);
+
+                // Current match context cross-references
+                const currentMapName = liveMatch.map_name;
+                const mapStat = currentMapName && maps?.find((m) => m.map.toLowerCase() === currentMapName.toLowerCase());
+                const mapStatWr = mapStat && mapStat.games > 0 ? Math.round((mapStat.wins / mapStat.games) * 100) : null;
+
+                const currentCivName = !liveMatch.hide_civilizations ? getCivName(opp.slot.civilization) : null;
+                const civStat = currentCivName && civs?.find((c) => c.civName.toLowerCase() === currentCivName.toLowerCase());
 
                 if (!p) return null;
 
                 return (
                   <div key={opp.slot.profileid} className="bg-slate-900/60 rounded-lg p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-bold text-amber-100 flex items-center gap-2">
-                        <Target className="w-4 h-4 text-amber-500" />
-                        {String(p.name || opp.slot.name || "Unknown")}
-                        {!liveMatch.hide_civilizations && (
-                          <span className="text-xs text-slate-400 font-normal">
-                            — {getCivName(opp.slot.civilization)}
+                    {/* Header */}
+                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-sm font-bold text-amber-100 flex items-center gap-2">
+                          <Target className="w-4 h-4 text-amber-500" />
+                          {String(p.name || opp.slot.name || "Unknown")}
+                        </h4>
+                        {clan && (
+                          <span className="text-[10px] font-mono text-slate-400 bg-slate-800/70 px-1.5 py-0.5 rounded">
+                            [{clan}]
                           </span>
                         )}
-                      </h4>
-                      {typeof p.country === "string" && p.country && (
-                        <span className="text-xs text-slate-500">{p.country.toUpperCase()}</span>
-                      )}
+                        {currentCivName && (
+                          <span className="text-xs text-slate-400 font-normal">— {currentCivName}</span>
+                        )}
+                        {playstyle && <PlaystyleBadge tag={playstyle} locale={locale} />}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-slate-500">
+                        {lastMatchTs && (
+                          <span className="flex items-center gap-1" title={new Date(lastMatchTs * 1000).toLocaleString()}>
+                            <Clock className="w-3 h-3" />
+                            {formatRelativeTime(lastMatchTs, locale)}
+                          </span>
+                        )}
+                        {typeof p.country === "string" && p.country && (
+                          <span>{p.country.toUpperCase()}</span>
+                        )}
+                      </div>
                     </div>
+
+                    {/* Current match highlights — map WR + civ WR */}
+                    {(mapStatWr !== null || civStat) && (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {mapStatWr !== null && mapStat && (
+                          <div className={cn(
+                            "flex items-center gap-2 text-xs px-2.5 py-1.5 rounded-md border",
+                            mapStatWr >= 55 ? "bg-red-500/10 border-red-500/30 text-red-300" :
+                            mapStatWr <= 45 ? "bg-green-500/10 border-green-500/30 text-green-300" :
+                            "bg-slate-800/60 border-slate-700/60 text-slate-300"
+                          )}>
+                            <MapPin className="w-3 h-3" />
+                            <span className="font-medium">
+                              {locale === "es" ? `WR en ${mapStat.map}` : `WR on ${mapStat.map}`}:
+                            </span>
+                            <span className="font-bold">{mapStatWr}%</span>
+                            <span className="text-slate-500">({mapStat.games}g)</span>
+                          </div>
+                        )}
+                        {civStat && (
+                          <div className={cn(
+                            "flex items-center gap-2 text-xs px-2.5 py-1.5 rounded-md border",
+                            civStat.winRate >= 55 ? "bg-red-500/10 border-red-500/30 text-red-300" :
+                            civStat.winRate <= 45 ? "bg-green-500/10 border-green-500/30 text-green-300" :
+                            "bg-slate-800/60 border-slate-700/60 text-slate-300"
+                          )}>
+                            <Shield className="w-3 h-3" />
+                            <span className="font-medium">
+                              {locale === "es" ? `WR con ${civStat.civName}` : `WR as ${civStat.civName}`}:
+                            </span>
+                            <span className="font-bold">{civStat.winRate}%</span>
+                            <span className="text-slate-500">({civStat.games}g)</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Head-to-head */}
+                    {headToHead && headToHead.totalGames > 0 && (
+                      <div className="bg-purple-500/5 border border-purple-500/30 rounded-lg p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2 text-xs font-medium text-purple-300">
+                            <History className="w-3.5 h-3.5" />
+                            {locale === "es" ? "Historial directo (H2H)" : "Head-to-head"}
+                          </div>
+                          <div className="text-xs font-bold">
+                            <span className="text-green-400">{headToHead.wins}W</span>
+                            <span className="text-slate-500"> - </span>
+                            <span className="text-red-400">{headToHead.losses}L</span>
+                            <span className="text-slate-500 ml-1.5">
+                              ({Math.round((headToHead.wins / headToHead.totalGames) * 100)}%)
+                            </span>
+                          </div>
+                        </div>
+                        {headToHead.recent.length > 0 && (
+                          <div className="space-y-1">
+                            {headToHead.recent.slice(0, 3).map((h, i) => (
+                              <div key={i} className="flex items-center gap-2 text-[11px]">
+                                <span className={cn(
+                                  "w-5 h-5 rounded flex items-center justify-center font-bold",
+                                  h.won ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"
+                                )}>
+                                  {h.won ? "W" : "L"}
+                                </span>
+                                <span className="text-slate-400 flex-1 truncate">
+                                  {h.map} · {h.myCiv} vs {h.opponentCiv}
+                                </span>
+                                <span className="text-slate-500">{formatRelativeTime(h.date, locale)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Dual ELO ratings */}
                     <div className="grid grid-cols-2 gap-3">
@@ -1016,8 +1129,11 @@ function LiveMatchPanel({
                             <div className="flex items-baseline gap-2">
                               <span className="text-xl font-bold text-amber-100">{String(rm1v1.rating)}</span>
                               <span className="text-xs text-slate-500">#{String(rm1v1.rank)}</span>
+                              {!isTeamGame && ratingHistory && ratingHistory.length > 1 && (
+                                <RatingSparkline points={ratingHistory} width={70} height={20} />
+                              )}
                             </div>
-                            <div className="flex items-center gap-3 text-xs">
+                            <div className="flex items-center gap-3 text-xs flex-wrap">
                               <span><span className="text-green-400">{String(rm1v1.wins)}W</span> / <span className="text-red-400">{String(rm1v1.losses)}L</span></span>
                               <span className="text-slate-400">{String(rm1v1.winRate)}%</span>
                               <span className="text-slate-500">{locale === "es" ? "Pico" : "Peak"}: {String(rm1v1.highestRating)}</span>
@@ -1034,8 +1150,11 @@ function LiveMatchPanel({
                             <div className="flex items-baseline gap-2">
                               <span className="text-xl font-bold text-amber-100">{String(rmTeam.rating)}</span>
                               <span className="text-xs text-slate-500">#{String(rmTeam.rank)}</span>
+                              {isTeamGame && ratingHistory && ratingHistory.length > 1 && (
+                                <RatingSparkline points={ratingHistory} width={70} height={20} />
+                              )}
                             </div>
-                            <div className="flex items-center gap-3 text-xs">
+                            <div className="flex items-center gap-3 text-xs flex-wrap">
                               <span><span className="text-green-400">{String(rmTeam.wins)}W</span> / <span className="text-red-400">{String(rmTeam.losses)}L</span></span>
                               <span className="text-slate-400">{String(rmTeam.winRate)}%</span>
                               <span className="text-slate-500">{locale === "es" ? "Pico" : "Peak"}: {String(rmTeam.highestRating)}</span>
@@ -1055,13 +1174,17 @@ function LiveMatchPanel({
                           {locale === "es" ? "Racha" : "Streak"}: {String(p.streak)}
                         </span>
                       )}
+                      {rankCountry > 0 && (
+                        <span className="text-slate-400">
+                          {locale === "es" ? "Rank país" : "Country rank"}: #{rankCountry}
+                        </span>
+                      )}
                       {avgDuration && avgDuration > 0 && (
                         <span className="text-slate-400">
                           {locale === "es" ? "Duración media" : "Avg. game"}: {formatTime(avgDuration)}
                         </span>
                       )}
                       {(() => {
-                        const primaryLb = isTeamGame ? rmTeam : rm1v1;
                         const drops = Number(primaryLb?.drops ?? 0);
                         const games = Number(primaryLb?.games ?? 0);
                         if (drops > 0 && games > 0) {
@@ -1098,7 +1221,10 @@ function LiveMatchPanel({
                           <div className="text-xs text-slate-500 mb-1.5">{locale === "es" ? "Civs favoritas" : "Top civs"}</div>
                           <div className="space-y-1">
                             {civs.slice(0, 5).map((c) => (
-                              <div key={c.civName} className="flex items-center justify-between text-xs py-1">
+                              <div key={c.civName} className={cn(
+                                "flex items-center justify-between text-xs py-1 px-2 -mx-2 rounded",
+                                currentCivName && c.civName === currentCivName && "bg-amber-500/10 ring-1 ring-amber-500/30"
+                              )}>
                                 <span className="text-slate-300">{c.civName}</span>
                                 <div className="flex items-center gap-2">
                                   <span className="text-slate-500">{c.games}g</span>
@@ -1117,8 +1243,12 @@ function LiveMatchPanel({
                           <div className="space-y-1">
                             {maps.slice(0, 5).map((m) => {
                               const wr = m.games > 0 ? Math.round((m.wins / m.games) * 100) : 0;
+                              const isCurrentMap = currentMapName && m.map.toLowerCase() === currentMapName.toLowerCase();
                               return (
-                                <div key={m.map} className="flex items-center justify-between text-xs py-1">
+                                <div key={m.map} className={cn(
+                                  "flex items-center justify-between text-xs py-1 px-2 -mx-2 rounded",
+                                  isCurrentMap && "bg-amber-500/10 ring-1 ring-amber-500/30"
+                                )}>
                                   <span className="text-slate-300">{m.map}</span>
                                   <div className="flex items-center gap-2">
                                     <span className="text-slate-500">{m.games}g</span>
@@ -1133,6 +1263,56 @@ function LiveMatchPanel({
                         </div>
                       )}
                     </div>
+
+                    {/* Recent matches */}
+                    {recentMatchesList && recentMatchesList.length > 0 && (
+                      <div>
+                        <div className="text-xs text-slate-500 mb-1.5">
+                          {locale === "es" ? "Partidas recientes" : "Recent matches"}
+                        </div>
+                        <div className="space-y-1">
+                          {recentMatchesList.slice(0, 5).map((m, i) => (
+                            <div key={i} className="flex items-center gap-2 text-[11px] py-1">
+                              <span className={cn(
+                                "w-5 h-5 rounded flex items-center justify-center font-bold shrink-0",
+                                m.won ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"
+                              )}>
+                                {m.won ? "W" : "L"}
+                              </span>
+                              <span className="text-slate-300 truncate flex-1">
+                                {m.map} · {m.civ}
+                              </span>
+                              <span className={cn("font-medium tabular-nums", m.ratingChange >= 0 ? "text-green-400" : "text-red-400")}>
+                                {m.ratingChange >= 0 ? "+" : ""}{m.ratingChange}
+                              </span>
+                              <span className="text-slate-500 w-14 text-right">
+                                {formatRelativeTime(m.date, locale)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Civ recommendations (counters to their top civ) */}
+                    {civRecs && civRecs.length > 0 && civs && civs.length > 0 && (
+                      <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-3">
+                        <div className="text-xs font-medium text-amber-300 mb-2 flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5" />
+                          {locale === "es"
+                            ? `Counters sugeridos contra ${civs[0].civName}`
+                            : `Suggested counters vs ${civs[0].civName}`}
+                        </div>
+                        <div className="space-y-1.5">
+                          {civRecs.slice(0, 3).map((r, i) => (
+                            <div key={i} className="text-[11px] text-slate-300">
+                              <span className="font-bold text-amber-200">{r.civ}</span>
+                              <span className="text-slate-400"> — {r.reason}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}

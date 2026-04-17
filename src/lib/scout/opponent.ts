@@ -63,6 +63,32 @@ export interface CivRecommendation {
   reason: string;
 }
 
+export interface HeadToHead {
+  totalGames: number;
+  wins: number;
+  losses: number;
+  lastEncounter: number | null;
+  recent: Array<{
+    map: string;
+    won: boolean;
+    myCiv: string;
+    opponentCiv: string;
+    date: number;
+    ratingChange: number;
+  }>;
+}
+
+export type PlaystyleTag =
+  | "cavalry"
+  | "archers"
+  | "infantry"
+  | "camels"
+  | "siege"
+  | "gunpowder"
+  | "navy"
+  | "flex"
+  | "boom";
+
 export interface ScoutReport {
   profile: ScoutProfile;
   civStats: CivStat[];
@@ -72,6 +98,9 @@ export interface ScoutReport {
   avgGameDuration: number;
   civRecommendations: CivRecommendation[];
   matchCount: number;
+  playstyle: PlaystyleTag | null;
+  ratingHistory: number[];
+  headToHead: HeadToHead | null;
 }
 
 const CIV_COUNTERS: Record<string, CivRecommendation[]> = {
@@ -254,6 +283,156 @@ export function getCivRecommendations(civStats: CivStat[]): CivRecommendation[] 
   ];
 }
 
+const CIV_PLAYSTYLE: Record<string, PlaystyleTag> = {
+  Franks: "cavalry",
+  Lithuanians: "cavalry",
+  Persians: "cavalry",
+  Magyars: "cavalry",
+  Teutons: "cavalry",
+  Poles: "cavalry",
+  Cumans: "cavalry",
+  Huns: "cavalry",
+  Tatars: "cavalry",
+  Mongols: "archers",
+  Britons: "archers",
+  Ethiopians: "archers",
+  Chinese: "archers",
+  Mayans: "archers",
+  Vietnamese: "archers",
+  Italians: "archers",
+  Bengalis: "archers",
+  Dravidians: "archers",
+  Koreans: "archers",
+  Goths: "infantry",
+  Vikings: "infantry",
+  Japanese: "infantry",
+  Celts: "siege",
+  Slavs: "infantry",
+  Malay: "infantry",
+  Burgundians: "cavalry",
+  Romans: "infantry",
+  Malians: "infantry",
+  Bohemians: "gunpowder",
+  Turks: "gunpowder",
+  Portuguese: "gunpowder",
+  Spanish: "gunpowder",
+  Berbers: "camels",
+  Saracens: "camels",
+  Hindustanis: "camels",
+  Gurjaras: "camels",
+  Byzantines: "flex",
+  Khmer: "siege",
+  Incas: "infantry",
+  Aztecs: "infantry",
+  Armenians: "navy",
+  Georgians: "cavalry",
+};
+
+export function computePlaystyle(civStats: CivStat[]): PlaystyleTag | null {
+  if (civStats.length === 0) return null;
+
+  const tally = new Map<PlaystyleTag, number>();
+  for (const c of civStats.slice(0, 8)) {
+    const tag = CIV_PLAYSTYLE[c.civName];
+    if (!tag) continue;
+    tally.set(tag, (tally.get(tag) ?? 0) + c.games);
+  }
+
+  if (tally.size === 0) return null;
+
+  let best: PlaystyleTag | null = null;
+  let bestCount = 0;
+  tally.forEach((count, tag) => {
+    if (count > bestCount) {
+      best = tag;
+      bestCount = count;
+    }
+  });
+  return best;
+}
+
+export function computeRatingHistory(matches: CompanionMatch[], profileId: number, count: number): number[] {
+  const history: number[] = [];
+  const sorted = [...matches]
+    .filter((m) => m.started)
+    .sort((a, b) => new Date(a.started).getTime() - new Date(b.started).getTime());
+
+  for (const match of sorted) {
+    const me = findMe(match, profileId);
+    if (!me || me.won === null) continue;
+    history.push(me.rating ?? 0);
+  }
+
+  return history.slice(-count);
+}
+
+export function computeHeadToHead(
+  opponentMatches: CompanionMatch[],
+  opponentProfileId: number,
+  myProfileId: number,
+): HeadToHead | null {
+  const shared = opponentMatches.filter((match) =>
+    match.teams.some((t) => t.players.some((p) => p.profileId === myProfileId)),
+  );
+
+  if (shared.length === 0) return null;
+
+  let wins = 0;
+  let losses = 0;
+  let lastEncounter: number | null = null;
+  const recent: HeadToHead["recent"] = [];
+
+  for (const match of shared) {
+    let mePlayer: CompanionMatchPlayer | undefined;
+    let oppPlayer: CompanionMatchPlayer | undefined;
+    let myTeamId: number | undefined;
+    let oppTeamId: number | undefined;
+
+    for (const team of match.teams) {
+      for (const p of team.players) {
+        if (p.profileId === myProfileId) {
+          mePlayer = p;
+          myTeamId = team.teamId;
+        } else if (p.profileId === opponentProfileId) {
+          oppPlayer = p;
+          oppTeamId = team.teamId;
+        }
+      }
+    }
+
+    if (!mePlayer || !oppPlayer || mePlayer.won === null) continue;
+    if (myTeamId !== undefined && oppTeamId !== undefined && myTeamId === oppTeamId) continue;
+
+    if (mePlayer.won) wins += 1;
+    else losses += 1;
+
+    const finishedTs = match.finished ? new Date(match.finished).getTime() : new Date(match.started).getTime();
+    const dateSec = Math.floor(finishedTs / 1000);
+    if (lastEncounter === null || dateSec > lastEncounter) lastEncounter = dateSec;
+
+    if (recent.length < 5) {
+      recent.push({
+        map: match.mapName || cleanMapName(match.map || "unknown"),
+        won: mePlayer.won,
+        myCiv: titleCase(mePlayer.civName || mePlayer.civ || "Unknown"),
+        opponentCiv: titleCase(oppPlayer.civName || oppPlayer.civ || "Unknown"),
+        date: dateSec,
+        ratingChange: mePlayer.ratingDiff ?? 0,
+      });
+    }
+  }
+
+  if (wins + losses === 0) return null;
+
+  return {
+    totalGames: wins + losses,
+    wins,
+    losses,
+    lastEncounter,
+    recent: recent.sort((a, b) => b.date - a.date),
+  };
+}
+
 function extractLeaderboardStats(lb: {
   rating: number; rank: number; wins: number; losses: number;
   streak: number; maxRating: number; drops: number; games: number;
@@ -280,10 +459,12 @@ export async function buildScoutReport({
   profileId,
   name,
   leaderboardType = "rm_1v1",
+  vsProfileId,
 }: {
   profileId?: number;
   name?: string;
   leaderboardType?: "rm_1v1" | "rm_team";
+  vsProfileId?: number;
 }): Promise<ScoutReport> {
   let resolvedProfileId = profileId ?? null;
 
@@ -334,6 +515,11 @@ export async function buildScoutReport({
   const recentMatches = computeRecentMatches(matches, resolvedProfileId, 10);
   const avgGameDuration = computeAvgGameDuration(matches);
   const civRecommendations = getCivRecommendations(civStats);
+  const playstyle = computePlaystyle(civStats);
+  const ratingHistory = computeRatingHistory(matches, resolvedProfileId, 20);
+  const headToHead = vsProfileId && vsProfileId !== resolvedProfileId
+    ? computeHeadToHead(matches, resolvedProfileId, vsProfileId)
+    : null;
 
   return {
     profile,
@@ -344,5 +530,8 @@ export async function buildScoutReport({
     avgGameDuration,
     civRecommendations,
     matchCount: matches.length,
+    playstyle,
+    ratingHistory,
+    headToHead,
   };
 }
