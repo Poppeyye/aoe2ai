@@ -51,6 +51,7 @@ export async function GET(req: NextRequest) {
     const ws = new WebSocket(LOBBY_WS_URL);
     let pingTimer: ReturnType<typeof setInterval> | null = null;
     let closed = false;
+    let matchesSubscribed = false;
 
     const cleanup = () => {
       if (closed) return;
@@ -68,6 +69,16 @@ export async function GET(req: NextRequest) {
       writer.write(encoder.encode(payload)).catch(() => cleanup());
     };
 
+    const subscribeSpectateMatches = () => {
+      if (matchesSubscribed || ws.readyState !== WebSocket.OPEN) return;
+      matchesSubscribed = true;
+      ws.send(JSON.stringify({
+        action: "subscribe",
+        type: "matches",
+        context: "spectate",
+      }));
+    };
+
     ws.on("open", () => {
       ws.send(JSON.stringify({
         action: "subscribe",
@@ -81,6 +92,9 @@ export async function GET(req: NextRequest) {
         context: "lobby",
         ids: [String(pid)],
       }));
+      // Subscribe immediately so users who start listening after the game began
+      // still get the current spectate_match_all snapshot.
+      subscribeSpectateMatches();
 
       pingTimer = setInterval(() => {
         sendSSE("ping", { ts: Date.now() });
@@ -101,11 +115,7 @@ export async function GET(req: NextRequest) {
             });
 
             if (playerData.matchid && playerData.status === "spectate") {
-              ws.send(JSON.stringify({
-                action: "subscribe",
-                type: "matches",
-                context: "spectate",
-              }));
+              subscribeSpectateMatches();
             }
           }
         }
@@ -116,7 +126,7 @@ export async function GET(req: NextRequest) {
             const match = matchData as Record<string, unknown>;
             const slots = match.slots as Record<string, { profileid?: number }> | undefined;
             if (slots) {
-              const hasPlayer = Object.values(slots).some(s => s.profileid === pid);
+              const hasPlayer = Object.values(slots).some(s => Number(s.profileid) === pid);
               if (hasPlayer) {
                 sendSSE("match", { matchid: matchId, ...match });
                 break;
@@ -131,7 +141,7 @@ export async function GET(req: NextRequest) {
             const match = matchData as Record<string, unknown>;
             const slots = match.slots as Record<string, { profileid?: number }> | undefined;
             if (slots) {
-              const hasPlayer = Object.values(slots).some(s => s.profileid === pid);
+              const hasPlayer = Object.values(slots).some(s => Number(s.profileid) === pid);
               if (hasPlayer) {
                 sendSSE("match", { matchid: matchId, ...match });
               }

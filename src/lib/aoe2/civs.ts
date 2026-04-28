@@ -1,10 +1,10 @@
 /**
- * AoE2 DE civilization IDs from the aoe2lobby.com WebSocket API.
- * These use the game's internal 1-indexed civilization IDs (0 = Random/Gaia).
+ * Civilization IDs from the aoe2lobby.com WebSocket schema.
+ * Keep this aligned with their `schema.civilization` map, not the Relic race IDs.
  */
 
 export const CIV_NAMES: Record<number, string> = {
-  0: "Random",
+  0: "Hidden",
   1: "Britons",
   2: "Franks",
   3: "Goths",
@@ -37,9 +37,9 @@ export const CIV_NAMES: Record<number, string> = {
   30: "Burmese",
   31: "Vietnamese",
   32: "Bulgarians",
-  33: "Cumans",
-  34: "Lithuanians",
-  35: "Tatars",
+  33: "Tatars",
+  34: "Cumans",
+  35: "Lithuanians",
   36: "Burgundians",
   37: "Sicilians",
   38: "Poles",
@@ -50,6 +50,38 @@ export const CIV_NAMES: Record<number, string> = {
   43: "Romans",
   44: "Armenians",
   45: "Georgians",
+  46: "Random",
+  47: "Mirror",
+  48: "Full Random",
+  49: "Custom",
+  50: "Egyptians",
+  51: "Greeks",
+  52: "Babylonians",
+  53: "Assyrians",
+  54: "Minoans",
+  55: "Hittites",
+  56: "Phoenicians",
+  57: "Sumerians",
+  58: "Old Persians",
+  59: "Shang",
+  60: "Yamato",
+  61: "Choson",
+  62: "Old Romans",
+  63: "Carthaginians",
+  64: "Palmyrans",
+  65: "Macedonians",
+  66: "Lac Viet",
+  67: "Achaemenids",
+  68: "Athenians",
+  69: "Spartans",
+  70: "Shu",
+  71: "Wu",
+  72: "Wei",
+  73: "Jurchens",
+  74: "Khitans",
+  75: "Mapuche",
+  76: "Muisca",
+  77: "Tupi",
 };
 
 export function getCivName(id: number): string {
