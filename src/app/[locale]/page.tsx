@@ -35,6 +35,23 @@ export default async function HomePage({
       <section className="relative py-16 md:py-24 text-center">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-aoe-accent/[0.03] rounded-full blur-3xl" />
+          <Image
+            src="/home-arena-micro.png"
+            alt=""
+            width={1024}
+            height={682}
+            priority
+            aria-hidden="true"
+            className="hidden lg:block absolute right-0 top-1/2 -translate-y-1/2 w-[520px] xl:w-[620px] opacity-[0.12] mix-blend-luminosity"
+            style={{
+              maskImage:
+                "linear-gradient(to left, black 35%, transparent 100%), linear-gradient(to bottom, transparent 0%, black 20%, black 75%, transparent 100%)",
+              WebkitMaskImage:
+                "linear-gradient(to left, black 35%, transparent 100%), linear-gradient(to bottom, transparent 0%, black 20%, black 75%, transparent 100%)",
+              maskComposite: "intersect",
+              WebkitMaskComposite: "source-in",
+            }}
+          />
         </div>
         <div className="relative">
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-medieval font-bold mb-6 leading-tight">
@@ -61,22 +78,6 @@ export default async function HomePage({
               {d.cta_agent}
             </Link>
           </div>
-        </div>
-      </section>
-
-      {/* Brand visual */}
-      <section className="mb-16">
-        <div className="relative overflow-hidden rounded-2xl border border-aoe-accent/15 bg-slate-950/60 shadow-2xl shadow-black/20">
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/55 via-transparent to-slate-950/20 z-10 pointer-events-none" />
-          <div className="absolute inset-0 ring-1 ring-inset ring-white/5 rounded-2xl z-20 pointer-events-none" />
-          <Image
-            src="/home-arena-micro.png"
-            alt="AoE2.ai arena artwork about improving micro, training, analyzing and having fun"
-            width={1024}
-            height={682}
-            className="w-full h-auto object-cover opacity-90"
-            sizes="(min-width: 1280px) 1200px, 100vw"
-          />
         </div>
       </section>
 
