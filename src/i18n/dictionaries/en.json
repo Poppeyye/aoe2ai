@@ -1,9 +1,9 @@
 {
   "meta": {
-    "title": "AoE2.ai | AI Tools for Age of Empires II Players",
-    "description": "Scout opponents, analyze matchups, understand your replays, and turn game knowledge into practical decisions fast.",
-    "og_title": "AoE2.ai",
-    "og_description": "Your AI advantage for Age of Empires II"
+    "title": "AoE2 AI — Free AI Assistant & Tools for Age of Empires II | AoE2.ai",
+    "description": "AoE2 AI assistant: scout opponents with AI, analyze your replays, ask strategy questions, and explore every civilization's tech tree. Free AI tools for Age of Empires II: Definitive Edition.",
+    "og_title": "AoE2 AI — Free AI Assistant for Age of Empires II",
+    "og_description": "Scout opponents, analyze replays with AI, and master every AoE2 civilization. 100% free."
   },
   "nav": {
     "agent": "Agent",
@@ -14,6 +14,38 @@
     "learn": "Build Orders",
     "profile": "My Profile",
     "login": "Login"
+  },
+  "home_seo": {
+    "about_title": "What is AoE2 AI?",
+    "about_p1": "AoE2.ai is a free AI assistant for Age of Empires II: Definitive Edition. It combines live player data, replay parsing, and an AI agent trained on AoE2 strategy to help you win more ranked games: scout your opponent's favorite civilizations and maps before the match starts, get an AI analysis of your recorded games, and ask any question about build orders, unit counters, or civilization matchups.",
+    "about_p2": "Everything runs in your browser — no downloads, no mods, no interaction with the game client. The data comes from public AoE2 leaderboards and the official tech tree, so stats and civilizations stay up to date with every patch and DLC automatically.",
+    "faq_title": "Frequently Asked Questions",
+    "faq": [
+      {
+        "q": "What can the AoE2 AI assistant do?",
+        "a": "You can ask it anything about Age of Empires II: civilization matchups, unit counters, build orders, or recent patch changes. It can also look up real player profiles, scout opponents, and compare civilizations using live data."
+      },
+      {
+        "q": "Is AoE2.ai free?",
+        "a": "Yes, 100% free. There are no ads, no paid tiers, and nothing is sold. The project is supported by voluntary Ko-fi donations."
+      },
+      {
+        "q": "How does the AI opponent scouting work?",
+        "a": "Search any player by name and the tool analyzes their ranked history from public leaderboard data: favorite civilizations, most-played maps, win rates, recent form, and recommended counter civilizations. You can even auto-detect your live ranked match and scout all opponents at once."
+      },
+      {
+        "q": "Can it analyze my recorded games?",
+        "a": "Yes. Upload any .aoe2record replay file and you get age-up timings, battle timeline, eAPM, army compositions, and an AI-written chronicle of the match with mistakes and improvement tips."
+      },
+      {
+        "q": "Is it a cheat or does it modify the game?",
+        "a": "No. AoE2.ai only reads publicly available data (leaderboards, match history, replay files you upload). It never interacts with or modifies the game client, so it is completely safe and fair to use."
+      },
+      {
+        "q": "Is it updated with the latest patches and DLCs?",
+        "a": "Yes. Tech tree and civilization data come from the game's data files and player stats from live APIs, so new civilizations and balance changes appear automatically."
+      }
+    ]
   },
   "footer": {
     "passion": "A passion project built with",

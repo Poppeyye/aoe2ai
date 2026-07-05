@@ -9,7 +9,7 @@ export async function buildPageMetadata(
 ): Promise<Metadata> {
   if (!isValidLocale(locale)) return {};
   const dict = await getDictionary(locale as Locale);
-  const d = (dict as Record<string, Record<string, string>>)[dictKey];
+  const d = (dict as unknown as Record<string, Record<string, string>>)[dictKey];
   if (!d) return {};
 
   return {

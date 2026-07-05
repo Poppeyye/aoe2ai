@@ -205,6 +205,9 @@ export default async function HomePage({
         </div>
       </section>
 
+      {/* About + FAQ (SEO content) */}
+      <HomeSeoContent dict={dict} />
+
       {/* Stats + Ko-fi */}
       <section className="py-12 border-t border-aoe-border">
         <div className="flex flex-wrap justify-center gap-12 text-gray-400 mb-8">
@@ -254,6 +257,63 @@ export default async function HomePage({
         </div>
       </section>
     </div>
+  );
+}
+
+interface HomeSeoDict {
+  about_title: string;
+  about_p1: string;
+  about_p2: string;
+  faq_title: string;
+  faq: { q: string; a: string }[];
+}
+
+function HomeSeoContent({ dict }: { dict: Record<string, unknown> }) {
+  const seo = dict.home_seo as HomeSeoDict | undefined;
+  if (!seo) return null;
+
+  const faqJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: seo.faq.map((item) => ({
+      "@type": "Question",
+      name: item.q,
+      acceptedAnswer: { "@type": "Answer", text: item.a },
+    })),
+  };
+
+  return (
+    <section className="py-12 border-t border-aoe-border">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+      />
+      <div className="max-w-3xl mx-auto">
+        <h2 className="text-2xl font-medieval font-bold text-white mb-4">
+          {seo.about_title}
+        </h2>
+        <p className="text-gray-400 leading-relaxed mb-3">{seo.about_p1}</p>
+        <p className="text-gray-400 leading-relaxed mb-10">{seo.about_p2}</p>
+
+        <h2 className="text-2xl font-medieval font-bold text-white mb-6">
+          {seo.faq_title}
+        </h2>
+        <div className="space-y-3">
+          {seo.faq.map((item, i) => (
+            <details
+              key={i}
+              className="group rounded-xl border border-aoe-border bg-aoe-card/50 px-5 py-4"
+            >
+              <summary className="cursor-pointer list-none flex items-center justify-between gap-3 font-semibold text-white">
+                {item.q}
+                <ChevronRight className="w-4 h-4 text-gray-500 shrink-0 transition-transform group-open:rotate-90" />
+              </summary>
+              <p className="text-sm text-gray-400 leading-relaxed mt-3">{item.a}</p>
+            </details>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }
 

@@ -1,9 +1,9 @@
 {
   "meta": {
-    "title": "AoE2.ai | Herramientas IA para jugadores de Age of Empires II",
-    "description": "Espía a tus rivales, analiza enfrentamientos, estudia tus replays y convierte tu conocimiento del juego en decisiones prácticas.",
-    "og_title": "AoE2.ai",
-    "og_description": "Tu ventaja con IA para Age of Empires II"
+    "title": "AoE2 AI — Asistente y Herramientas IA gratis para Age of Empires II | AoE2.ai",
+    "description": "Asistente de IA para AoE2: espía rivales con IA, analiza tus replays, pregunta estrategias y explora el árbol tecnológico de cada civilización. Herramientas gratuitas para Age of Empires II: Definitive Edition.",
+    "og_title": "AoE2 AI — Asistente de IA gratis para Age of Empires II",
+    "og_description": "Espía rivales, analiza replays con IA y domina cada civilización de AoE2. 100% gratis."
   },
   "nav": {
     "agent": "Agente",
@@ -14,6 +14,38 @@
     "learn": "Build Orders",
     "profile": "Mi Perfil",
     "login": "Iniciar Sesión"
+  },
+  "home_seo": {
+    "about_title": "¿Qué es AoE2 AI?",
+    "about_p1": "AoE2.ai es un asistente de inteligencia artificial gratuito para Age of Empires II: Definitive Edition. Combina datos de jugadores en vivo, análisis de replays y un agente de IA especializado en estrategia de AoE2 para ayudarte a ganar más partidas ranked: espía las civilizaciones y mapas favoritos de tu rival antes de empezar, obtén un análisis de IA de tus partidas grabadas y pregunta cualquier duda sobre build orders, counters de unidades o enfrentamientos entre civilizaciones.",
+    "about_p2": "Todo funciona en tu navegador: sin descargas, sin mods y sin tocar el cliente del juego. Los datos vienen de los rankings públicos de AoE2 y del árbol tecnológico oficial, así que las estadísticas y civilizaciones se mantienen al día con cada parche y DLC automáticamente.",
+    "faq_title": "Preguntas Frecuentes",
+    "faq": [
+      {
+        "q": "¿Qué puede hacer el asistente de IA de AoE2?",
+        "a": "Puedes preguntarle cualquier cosa sobre Age of Empires II: enfrentamientos entre civilizaciones, counters de unidades, build orders o cambios de los últimos parches. También puede buscar perfiles reales de jugadores, espiar rivales y comparar civilizaciones con datos en vivo."
+      },
+      {
+        "q": "¿AoE2.ai es gratis?",
+        "a": "Sí, 100% gratis. No hay anuncios, ni planes de pago, ni se vende nada. El proyecto se mantiene con donaciones voluntarias en Ko-fi."
+      },
+      {
+        "q": "¿Cómo funciona el espionaje de rivales con IA?",
+        "a": "Busca a cualquier jugador por nombre y la herramienta analiza su historial ranked con datos públicos: civilizaciones favoritas, mapas más jugados, porcentajes de victoria, forma reciente y civilizaciones counter recomendadas. Incluso puede detectar tu partida ranked en vivo y espiar a todos los rivales a la vez."
+      },
+      {
+        "q": "¿Puede analizar mis partidas grabadas?",
+        "a": "Sí. Sube cualquier replay .aoe2record y obtendrás tiempos de subida de edad, línea temporal de batallas, eAPM, composiciones de ejército y una crónica escrita por IA con errores y consejos de mejora."
+      },
+      {
+        "q": "¿Es un cheat o modifica el juego?",
+        "a": "No. AoE2.ai solo lee datos públicos (rankings, historial de partidas y los replays que subes). Nunca interactúa con el cliente del juego ni lo modifica, así que es completamente seguro y justo."
+      },
+      {
+        "q": "¿Está actualizado con los últimos parches y DLCs?",
+        "a": "Sí. El árbol tecnológico y las civilizaciones vienen de los archivos de datos del juego y las estadísticas de jugadores de APIs en vivo, así que las civilizaciones nuevas y los cambios de balance aparecen automáticamente."
+      }
+    ]
   },
   "footer": {
     "passion": "Un proyecto creado con",
