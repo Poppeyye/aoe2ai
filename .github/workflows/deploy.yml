@@ -34,7 +34,7 @@ jobs:
           DISCORD_CLIENT_SECRET=${{ secrets.DISCORD_CLIENT_SECRET }}
           NEXT_PUBLIC_HAS_GOOGLE=1
           NEXT_PUBLIC_HAS_DISCORD=1
-          NEXT_PUBLIC_GA_ID=${{ secrets.NEXT_PUBLIC_GA_ID }}
+          NEXT_PUBLIC_GA_ID=G-MLVVQJ6GYJ
           DATABASE_URL=file:./data/aoe2ai.db
           ENVEOF
 
