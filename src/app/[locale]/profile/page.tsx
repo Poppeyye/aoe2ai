@@ -197,9 +197,15 @@ export default function ProfilePage() {
   const [aiLoading, setAiLoading] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (authLoading) return;
+    if (!isAuthenticated) {
+      // No session: stop the page loader so the login prompt renders
+      setProfileLoading(false);
+      return;
+    }
     fetchLinkedProfile();
-  }, [isAuthenticated]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, authLoading]);
 
   async function fetchLinkedProfile() {
     try {
@@ -393,7 +399,11 @@ export default function ProfilePage() {
     };
   }, []);
 
-  // Auto-fetch all opponents' stats when match is found
+  // Auto-fetch all opponents' stats when match is found.
+  // NOTE: liveMatch gets a new identity on every SSE update, so this effect
+  // must be idempotent per opponent set: mark the set as attempted BEFORE
+  // fetching and never abort in-flight fetches from the effect itself,
+  // otherwise repeated match updates cancel the scout forever.
   useEffect(() => {
     if (!liveMatch || !linkedProfile?.profileId) return;
 
@@ -405,13 +415,10 @@ export default function ProfilePage() {
       .sort((a, b) => a - b)
       .join(",");
 
-    if (opponents.length === 0) {
-      setScouting(false);
-      return;
-    }
-
+    if (opponents.length === 0) return;
     if (opponentIds === scoutedOpponentIdsRef.current) return;
 
+    scoutedOpponentIdsRef.current = opponentIds;
     scoutAbortRef.current?.abort();
     const abortController = new AbortController();
     scoutAbortRef.current = abortController;
@@ -424,7 +431,6 @@ export default function ProfilePage() {
     )
       .then((results) => {
         if (abortController.signal.aborted) return;
-        scoutedOpponentIdsRef.current = opponentIds;
         setOpponentScouts(results);
       })
       .finally(() => {
@@ -432,10 +438,6 @@ export default function ProfilePage() {
           setScouting(false);
         }
       });
-
-    return () => {
-      abortController.abort();
-    };
   }, [liveMatch, linkedProfile?.profileId, locale]);
 
   const runAiAnalysis = useCallback(async () => {
