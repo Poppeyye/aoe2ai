@@ -8,6 +8,7 @@ import { I18nProvider } from "@/i18n/I18nProvider";
 import { getDictionary } from "@/i18n/getDictionary";
 import { locales, type Locale, isValidLocale } from "@/i18n/config";
 import { WebSiteJsonLd, WebApplicationJsonLd } from "@/components/seo/JsonLd";
+import GoogleAnalytics from "@/components/analytics/GoogleAnalytics";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -82,6 +83,7 @@ export default async function LocaleLayout({
       <head>
         <WebSiteJsonLd locale={locale} />
         <WebApplicationJsonLd locale={locale} />
+        <GoogleAnalytics />
       </head>
       <body>
         <div className={`${inter.className} min-h-screen flex flex-col dark`}>

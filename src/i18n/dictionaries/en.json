@@ -173,7 +173,20 @@
     "available_units": "available units",
     "technologies": "technologies",
     "exclusive_differences": "Exclusive Differences",
-    "only_has": "Only {civ} has ({units} units, {techs} techs)"
+    "only_has": "Only {civ} has ({units} units, {techs} techs)",
+    "civ_page_title": "{civ} Tech Tree, Bonuses & Unique Units — AoE2 DE",
+    "civ_page_subtitle": "Full {civ} civilization guide for Age of Empires II: Definitive Edition — bonuses, team bonus, unique units, unique technologies, and tech tree availability.",
+    "back_to_techtree": "Back to Tech Tree",
+    "open_interactive": "Open interactive tech tree",
+    "all_civilizations": "All Civilizations",
+    "browse_civ_guides": "Browse civilization guides",
+    "stats_hp": "HP",
+    "stats_attack": "Attack",
+    "stats_range": "Range",
+    "stats_speed": "Speed",
+    "stats_cost": "Cost",
+    "availability": "Tech Tree Availability",
+    "of_total": "of {total}"
   },
   "live": {
     "title": "Opponent Scout",

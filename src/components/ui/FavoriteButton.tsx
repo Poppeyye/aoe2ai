@@ -29,6 +29,8 @@ export default function FavoriteButton({
   return (
     <button
       onClick={(e) => {
+        // Prevent navigation when rendered inside a Link card
+        e.preventDefault();
         e.stopPropagation();
         toggle(type, id, name, meta);
       }}

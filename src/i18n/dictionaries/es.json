@@ -173,7 +173,20 @@
     "available_units": "unidades disponibles",
     "technologies": "tecnologías",
     "exclusive_differences": "Diferencias Exclusivas",
-    "only_has": "Solo {civ} tiene ({units} uds., {techs} tecns.)"
+    "only_has": "Solo {civ} tiene ({units} uds., {techs} tecns.)",
+    "civ_page_title": "Árbol Tecnológico de {civ}: Bonificaciones y Unidades Únicas — AoE2 DE",
+    "civ_page_subtitle": "Guía completa de la civilización {civ} para Age of Empires II: Definitive Edition — bonificaciones, bonus de equipo, unidades únicas, tecnologías únicas y disponibilidad del árbol tecnológico.",
+    "back_to_techtree": "Volver al Árbol Tecnológico",
+    "open_interactive": "Abrir árbol tecnológico interactivo",
+    "all_civilizations": "Todas las Civilizaciones",
+    "browse_civ_guides": "Explora las guías de civilizaciones",
+    "stats_hp": "PV",
+    "stats_attack": "Ataque",
+    "stats_range": "Alcance",
+    "stats_speed": "Velocidad",
+    "stats_cost": "Coste",
+    "availability": "Disponibilidad del Árbol",
+    "of_total": "de {total}"
   },
   "live": {
     "title": "Scout de Oponente",

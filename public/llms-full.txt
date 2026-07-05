@@ -69,7 +69,7 @@ Curated build order guides for learning standard AoE2 strategies.
 ## Technical Details
 
 - Built with Next.js (App Router, standalone output)
-- AI powered by OpenAI (gpt-5-mini) via the Responses API
+- AI powered by OpenAI (gpt-5.4-mini) via the Responses API
 - Streaming responses with real-time tool activity visualization
 - Internationalized: full English and Spanish support
 - Authentication via NextAuth.js (Google and Discord providers)

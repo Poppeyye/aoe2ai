@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import {
   Radio, Search, Loader2, Swords, Shield, MapPin, Trophy,
   TrendingUp, TrendingDown, Clock, Crown, X, Flame, Target,
@@ -77,9 +78,20 @@ interface PlayerSuggestion {
 }
 
 export default function LivePage() {
+  return (
+    <Suspense fallback={null}>
+      <LivePageInner />
+    </Suspense>
+  );
+}
+
+function LivePageInner() {
   const dict = useDictionary();
   const locale = useLocale();
   const d = dict.live;
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<PlayerSuggestion[]>([]);
   const [sugLoading, setSugLoading] = useState(false);
@@ -89,6 +101,7 @@ export default function LivePage() {
 
   const searchRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const autoLoadedRef = useRef(false);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -133,18 +146,53 @@ export default function LivePage() {
       if (!res.ok) throw new Error("Failed");
       const data: ScoutData = await res.json();
       setScoutData(data);
+      // Shareable URL: /live?profileId=123456
+      router.replace(`${pathname}?profileId=${profileId}`, { scroll: false });
     } catch {
       setScoutData(null);
     } finally {
       setScoutLoading(false);
     }
-  }, [locale]);
+  }, [locale, router, pathname]);
+
+  // Auto-load scout from shareable URL (?profileId= or ?player=)
+  useEffect(() => {
+    if (autoLoadedRef.current) return;
+    const profileIdParam = searchParams.get("profileId");
+    const playerParam = searchParams.get("player");
+
+    if (profileIdParam) {
+      const pid = parseInt(profileIdParam, 10);
+      if (!Number.isNaN(pid)) {
+        autoLoadedRef.current = true;
+        selectPlayer(pid);
+      }
+      return;
+    }
+
+    if (playerParam && playerParam.trim().length >= 2) {
+      autoLoadedRef.current = true;
+      setQuery(playerParam);
+      setScoutLoading(true);
+      fetch(`/api/live?name=${encodeURIComponent(playerParam.trim())}&locale=${locale}`)
+        .then((res) => (res.ok ? res.json() : Promise.reject()))
+        .then((data: ScoutData) => {
+          setScoutData(data);
+          if (data.profile?.profileId) {
+            router.replace(`${pathname}?profileId=${data.profile.profileId}`, { scroll: false });
+          }
+        })
+        .catch(() => setScoutData(null))
+        .finally(() => setScoutLoading(false));
+    }
+  }, [searchParams, selectPlayer, locale, router, pathname]);
 
   function clearSearch() {
     setQuery("");
     setSuggestions([]);
     setShowDropdown(false);
     setScoutData(null);
+    router.replace(pathname, { scroll: false });
   }
 
   const now = Math.floor(Date.now() / 1000);
