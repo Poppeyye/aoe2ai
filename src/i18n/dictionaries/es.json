@@ -22,7 +22,9 @@
     "support": "Apoya este proyecto en Ko-fi",
     "built_by": "Creado por",
     "with_love": "con amor para la comunidad",
-    "contact": "Contacto"
+    "contact": "Contacto",
+    "disclaimer": "AoE2.ai es un proyecto independiente hecho por fans y no está afiliado ni respaldado por Microsoft ni World's Edge. Age of Empires II es una marca de Microsoft Corporation.",
+    "free_notice": "Herramienta de estadísticas y aprendizaje 100% gratuita. Sin apuestas, sin premios, sin venta de objetos del juego. Las donaciones vía Ko-fi son voluntarias y no otorgan bienes ni servicios a cambio."
   },
   "home": {
     "hero_pre": "Tu",

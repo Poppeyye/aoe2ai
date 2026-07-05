@@ -76,6 +76,11 @@ export default function Footer() {
             </div>
           </div>
         </div>
+
+        <div className="mt-8 pt-6 border-t border-aoe-border/50 text-center space-y-1.5">
+          <p className="text-xs text-gray-600">{d.free_notice}</p>
+          <p className="text-[11px] text-gray-700">{d.disclaimer}</p>
+        </div>
       </div>
     </footer>
   );
