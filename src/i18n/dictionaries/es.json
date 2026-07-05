@@ -47,6 +47,11 @@
       }
     ]
   },
+  "cookies": {
+    "message": "Usamos cookies de analítica anónima (Google Analytics) para entender cómo se usa la web. No se venden ni comparten datos personales.",
+    "accept": "Aceptar",
+    "reject": "Rechazar"
+  },
   "footer": {
     "passion": "Un proyecto creado con",
     "for_community": "para la comunidad de AoE2.",

@@ -9,6 +9,7 @@ import { getDictionary } from "@/i18n/getDictionary";
 import { locales, type Locale, isValidLocale } from "@/i18n/config";
 import { WebSiteJsonLd, WebApplicationJsonLd } from "@/components/seo/JsonLd";
 import GoogleAnalytics from "@/components/analytics/GoogleAnalytics";
+import CookieConsent from "@/components/analytics/CookieConsent";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -92,6 +93,7 @@ export default async function LocaleLayout({
               <Navbar />
               <main className="flex-1">{children}</main>
               <Footer />
+              <CookieConsent />
             </I18nProvider>
           </SessionProvider>
         </div>

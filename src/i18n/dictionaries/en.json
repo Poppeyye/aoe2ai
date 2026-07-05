@@ -47,6 +47,11 @@
       }
     ]
   },
+  "cookies": {
+    "message": "We use cookies for anonymous analytics (Google Analytics) to understand how the site is used. No personal data is sold or shared.",
+    "accept": "Accept",
+    "reject": "Reject"
+  },
   "footer": {
     "passion": "A passion project built with",
     "for_community": "for the AoE2 community.",

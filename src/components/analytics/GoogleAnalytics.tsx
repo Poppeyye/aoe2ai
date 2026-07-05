@@ -15,6 +15,15 @@ export default function GoogleAnalytics() {
         {`
           window.dataLayer = window.dataLayer || [];
           function gtag(){dataLayer.push(arguments);}
+          // Consent Mode v2: denied by default until the user accepts the banner
+          var storedConsent = null;
+          try { storedConsent = localStorage.getItem('cookie-consent'); } catch (e) {}
+          gtag('consent', 'default', {
+            analytics_storage: storedConsent === 'granted' ? 'granted' : 'denied',
+            ad_storage: 'denied',
+            ad_user_data: 'denied',
+            ad_personalization: 'denied'
+          });
           gtag('js', new Date());
           gtag('config', '${GA_ID}', { anonymize_ip: true });
         `}
