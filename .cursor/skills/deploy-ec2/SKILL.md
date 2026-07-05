@@ -44,7 +44,7 @@ rg -i "error|failed" /tmp/logs/*.txt /tmp/logs/**/*.txt
 
 ## Infrastructure
 
-- **EC2 instance**: `i-0208ce363c9ca15ba` (`aoe2-analyzer`) in `eu-west-1`
+- **EC2 instance**: `i-0208ce363c9ca15ba` (`aoe2-analyzer`) in `eu-west-1`, **t3.micro** (1 vCPU, 1 GB RAM)
 - **Domain**: `aoe2.ai` via Cloudflare (DNS + CDN)
 - **Nginx** reverse proxy on EC2 → `127.0.0.1:8000`
 - **Docker container**: `aoe2` running `aoe2-next:latest`

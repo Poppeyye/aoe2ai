@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 
-export const DEFAULT_AI_MODEL = process.env.OPENAI_MODEL || "gpt-5-mini";
+export const DEFAULT_AI_MODEL = process.env.OPENAI_MODEL || "gpt-5.4-mini";
 
 let client: OpenAI | null = null;
 

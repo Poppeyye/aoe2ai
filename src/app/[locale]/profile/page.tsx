@@ -101,6 +101,63 @@ interface LiveMatch {
 
 type ConnectionState = "disconnected" | "connecting" | "connected" | "match_found";
 
+const SCOUT_FETCH_TIMEOUT_MS = 45_000;
+
+function slotProfileId(slot: MatchSlot): number | null {
+  const id = Number(slot.profileid);
+  return Number.isFinite(id) && id > 0 ? id : null;
+}
+
+function getMatchParticipants(match: LiveMatch, myId: number) {
+  const occupied = Object.values(match.slots).filter(
+    (slot) => slot.status === 3 && slotProfileId(slot) !== null,
+  );
+  const mySlot = occupied.find((slot) => slotProfileId(slot) === myId) ?? null;
+  const myTeam = mySlot?.team;
+  const teammates = occupied.filter(
+    (slot) => {
+      const pid = slotProfileId(slot);
+      return pid !== null && pid !== myId && myTeam !== undefined && slot.team === myTeam;
+    },
+  );
+  const opponents = occupied.filter(
+    (slot) => {
+      const pid = slotProfileId(slot);
+      return pid !== null && pid !== myId && (myTeam === undefined || slot.team !== myTeam);
+    },
+  );
+  const isTeamGame = opponents.length > 1 || teammates.length > 0;
+
+  return { mySlot, teammates, opponents, isTeamGame };
+}
+
+async function fetchOpponentScout(
+  slot: MatchSlot,
+  locale: string,
+  lb: "rm_1v1" | "rm_team",
+  myId: number,
+  signal: AbortSignal,
+) {
+  const profileId = slotProfileId(slot);
+  if (!profileId) return { slot, data: {} as Record<string, unknown> };
+
+  const url = `/api/live?profileId=${profileId}&locale=${locale}&lb=${lb}&vs=${myId}&pages=2`;
+
+  try {
+    const res = await Promise.race([
+      fetch(url, { signal }),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("Scout fetch timed out")), SCOUT_FETCH_TIMEOUT_MS);
+      }),
+    ]);
+    if (!res.ok) return { slot, data: {} as Record<string, unknown> };
+    const data = await res.json();
+    return { slot, data };
+  } catch {
+    return { slot, data: {} as Record<string, unknown> };
+  }
+}
+
 export default function ProfilePage() {
   const dict = useDictionary();
   const locale = useLocale();
@@ -132,6 +189,8 @@ export default function ProfilePage() {
 
   const [opponentScouts, setOpponentScouts] = useState<Array<{ slot: MatchSlot; data: Record<string, unknown> }>>([]);
   const [scouting, setScouting] = useState(false);
+  const scoutAbortRef = useRef<AbortController | null>(null);
+  const scoutedOpponentIdsRef = useRef<string>("");
 
   const [aiText, setAiText] = useState("");
   const [aiActivities, setAiActivities] = useState<ToolActivity[]>([]);
@@ -247,6 +306,10 @@ export default function ProfilePage() {
     setConnectionState("connecting");
     setLiveMatch(null);
     setOpponentScouts([]);
+    scoutedOpponentIdsRef.current = "";
+    scoutAbortRef.current?.abort();
+    scoutAbortRef.current = null;
+    setScouting(false);
     setAiText("");
     setAiActivities([]);
 
@@ -268,12 +331,15 @@ export default function ProfilePage() {
 
     es.addEventListener("match", (e) => {
       const match = JSON.parse(e.data) as LiveMatch;
-      setLiveMatch(match);
+      setLiveMatch((prev) => {
+        if (!prev) return match;
+        return {
+          ...prev,
+          ...match,
+          slots: { ...prev.slots, ...match.slots },
+        };
+      });
       setConnectionState("match_found");
-      // Stop listening once match is found
-      es.close();
-      eventSourceRef.current = null;
-      setDetecting(false);
     });
 
     es.addEventListener("ping", () => {
@@ -297,6 +363,9 @@ export default function ProfilePage() {
   function stopMatchDetection() {
     setDetecting(false);
     setConnectionState("disconnected");
+    scoutAbortRef.current?.abort();
+    scoutAbortRef.current = null;
+    setScouting(false);
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
       eventSourceRef.current = null;
@@ -306,6 +375,10 @@ export default function ProfilePage() {
   function resetDetection() {
     setLiveMatch(null);
     setOpponentScouts([]);
+    scoutedOpponentIdsRef.current = "";
+    scoutAbortRef.current?.abort();
+    scoutAbortRef.current = null;
+    setScouting(false);
     setAiText("");
     setAiActivities([]);
     setConnectionState("disconnected");
@@ -313,6 +386,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     return () => {
+      scoutAbortRef.current?.abort();
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
       }
@@ -321,39 +395,48 @@ export default function ProfilePage() {
 
   // Auto-fetch all opponents' stats when match is found
   useEffect(() => {
-    if (!liveMatch || scouting || opponentScouts.length > 0) return;
+    if (!liveMatch || !linkedProfile?.profileId) return;
 
-    const myId = linkedProfile?.profileId;
-    if (!myId) return;
+    const myId = linkedProfile.profileId;
+    const { opponents, isTeamGame } = getMatchParticipants(liveMatch, myId);
+    const opponentIds = opponents
+      .map((slot) => slotProfileId(slot))
+      .filter((id): id is number => id !== null)
+      .sort((a, b) => a - b)
+      .join(",");
 
-    const mySlot = Object.values(liveMatch.slots).find((s) => s.profileid === myId);
-    const myTeam = mySlot?.team;
+    if (opponents.length === 0) {
+      setScouting(false);
+      return;
+    }
 
-    const opponents = Object.values(liveMatch.slots).filter(
-      (s) => s.profileid && s.profileid !== myId && s.status === 3 && (myTeam === undefined || s.team !== myTeam),
-    );
+    if (opponentIds === scoutedOpponentIdsRef.current) return;
 
-    if (opponents.length === 0) return;
+    scoutAbortRef.current?.abort();
+    const abortController = new AbortController();
+    scoutAbortRef.current = abortController;
 
-    const isTeamGame = opponents.length > 1 || Object.values(liveMatch.slots).filter((s) => s.status === 3 && s.team === myTeam && s.profileid !== myId).length > 0;
     const lb = isTeamGame ? "rm_team" : "rm_1v1";
-
     setScouting(true);
+
     Promise.all(
-      opponents.map(async (slot) => {
-        try {
-          const res = await fetch(`/api/live?profileId=${slot.profileid}&locale=${locale}&lb=${lb}&vs=${myId}`);
-          const data = await res.json();
-          return { slot, data };
-        } catch {
-          return { slot, data: {} };
-        }
-      }),
+      opponents.map((slot) => fetchOpponentScout(slot, locale, lb, myId, abortController.signal)),
     )
-      .then((results) => setOpponentScouts(results))
-      .catch(() => {})
-      .finally(() => setScouting(false));
-  }, [liveMatch, linkedProfile, scouting, opponentScouts.length, locale]);
+      .then((results) => {
+        if (abortController.signal.aborted) return;
+        scoutedOpponentIdsRef.current = opponentIds;
+        setOpponentScouts(results);
+      })
+      .finally(() => {
+        if (!abortController.signal.aborted) {
+          setScouting(false);
+        }
+      });
+
+    return () => {
+      abortController.abort();
+    };
+  }, [liveMatch, linkedProfile?.profileId, locale]);
 
   const runAiAnalysis = useCallback(async () => {
     if (!liveMatch || opponentScouts.length === 0 || !linkedProfile?.profileId) return;
@@ -817,16 +900,11 @@ function LiveMatchPanel({
 }) {
   const myId = linkedProfile.profileId;
 
-  const mySlot = liveMatch
-    ? Object.values(liveMatch.slots).find((s) => s.profileid === myId)
-    : null;
-  const allOpponentSlots = liveMatch
-    ? Object.values(liveMatch.slots).filter((s) => s.profileid && s.profileid !== myId && s.status === 3 && (mySlot?.team === undefined || s.team !== mySlot?.team))
-    : [];
-  const myTeamSlots = liveMatch
-    ? Object.values(liveMatch.slots).filter((s) => s.profileid && s.profileid !== myId && s.status === 3 && mySlot?.team !== undefined && s.team === mySlot?.team)
-    : [];
-  const isTeamGame = allOpponentSlots.length > 1 || myTeamSlots.length > 0;
+  const { mySlot, teammates, opponents, isTeamGame } = liveMatch
+    ? getMatchParticipants(liveMatch, myId ?? 0)
+    : { mySlot: null, teammates: [], opponents: [], isTeamGame: false };
+  const allOpponentSlots = opponents;
+  const myTeamSlots = teammates;
 
   const aiStarted = aiText.length > 0 || aiLoading;
 

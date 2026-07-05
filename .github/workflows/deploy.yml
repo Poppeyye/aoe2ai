@@ -22,7 +22,7 @@ jobs:
         run: |
           cat > .env << 'ENVEOF'
           OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
-          OPENAI_MODEL=gpt-5-mini
+          OPENAI_MODEL=gpt-5.4-mini
           RELIC_API_BASE=https://aoe-api.worldsedgelink.com
           NEXT_PUBLIC_APP_URL=https://aoe2.ai
           NEXT_PUBLIC_APP_NAME=AoE2.ai
@@ -76,6 +76,15 @@ jobs:
 
           echo "=== Pre-build disk check + cache prune ==="
           df -h / | tail -1
+          # 2G swap helps docker build on t3.micro (1G RAM)
+          if ! swapon --show | grep -q '/swapfile'; then
+            echo "=== Creating 2G swap file ==="
+            sudo fallocate -l 2G /swapfile 2>/dev/null || sudo dd if=/dev/zero of=/swapfile bs=1M count=2048
+            sudo chmod 600 /swapfile
+            sudo mkswap /swapfile
+            sudo swapon /swapfile
+            grep -q '/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+          fi
           # Keep only cache from the last 24h to avoid ENOSPC on small EC2 disks
           docker builder prune -af --filter "until=24h" >/dev/null 2>&1 || true
           # If still under 2G free, purge everything reclaimable

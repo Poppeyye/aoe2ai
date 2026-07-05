@@ -44,11 +44,15 @@ export async function GET(req: NextRequest) {
       if (!Number.isNaN(parsed)) vsProfileId = parsed;
     }
 
+    const pagesParam = params.get("pages");
+    const matchPages = pagesParam ? Math.min(Math.max(parseInt(pagesParam, 10) || 2, 1), 5) : 5;
+
     const scoutReport = await buildScoutReport({
       profileId,
       name: nameParam || undefined,
       leaderboardType: lbType,
       vsProfileId,
+      matchPages,
     });
 
     return NextResponse.json({

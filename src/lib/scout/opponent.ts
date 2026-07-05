@@ -460,11 +460,13 @@ export async function buildScoutReport({
   name,
   leaderboardType = "rm_1v1",
   vsProfileId,
+  matchPages = 5,
 }: {
   profileId?: number;
   name?: string;
   leaderboardType?: "rm_1v1" | "rm_team";
   vsProfileId?: number;
+  matchPages?: number;
 }): Promise<ScoutReport> {
   let resolvedProfileId = profileId ?? null;
 
@@ -482,7 +484,7 @@ export async function buildScoutReport({
 
   const [companionProfile, matches] = await Promise.all([
     getCompanionProfile(resolvedProfileId),
-    getCompanionMatches(resolvedProfileId, leaderboardType, 5),
+    getCompanionMatches(resolvedProfileId, leaderboardType, matchPages),
   ]);
 
   const rm1v1Lb = companionProfile.leaderboards?.find(
