@@ -6,6 +6,8 @@ import {
   type CompanionMatchPlayer,
 } from "@/lib/api/relic";
 
+export type ScoutLeaderboardType = "rm_1v1" | "rm_team" | "ew_1v1" | "ew_team";
+
 export interface LeaderboardStats {
   rating: number;
   rank: number;
@@ -33,6 +35,8 @@ export interface ScoutProfile {
   clan: string | null;
   rm1v1: LeaderboardStats | null;
   rmTeam: LeaderboardStats | null;
+  ew1v1: LeaderboardStats | null;
+  ewTeam: LeaderboardStats | null;
 }
 
 export interface CivStat {
@@ -464,7 +468,7 @@ export async function buildScoutReport({
 }: {
   profileId?: number;
   name?: string;
-  leaderboardType?: "rm_1v1" | "rm_team";
+  leaderboardType?: ScoutLeaderboardType;
   vsProfileId?: number;
   matchPages?: number;
 }): Promise<ScoutReport> {
@@ -493,8 +497,18 @@ export async function buildScoutReport({
   const rmTeamLb = companionProfile.leaderboards?.find(
     (lb) => lb.abbreviation === "RM Team" || lb.leaderboardId === "rm_team",
   );
+  const ew1v1Lb = companionProfile.leaderboards?.find(
+    (lb) => lb.abbreviation === "EW 1v1" || lb.leaderboardId === "ew_1v1",
+  );
+  const ewTeamLb = companionProfile.leaderboards?.find(
+    (lb) => lb.abbreviation === "EW Team" || lb.leaderboardId === "ew_team",
+  );
 
-  const primaryLb = leaderboardType === "rm_team" ? rmTeamLb : rm1v1Lb;
+  const primaryLb =
+    leaderboardType === "rm_team" ? rmTeamLb :
+    leaderboardType === "ew_1v1" ? ew1v1Lb :
+    leaderboardType === "ew_team" ? ewTeamLb :
+    rm1v1Lb;
 
   const profile: ScoutProfile = {
     name: companionProfile.name,
@@ -509,6 +523,8 @@ export async function buildScoutReport({
     clan: companionProfile.clan ?? null,
     rm1v1: extractLeaderboardStats(rm1v1Lb),
     rmTeam: extractLeaderboardStats(rmTeamLb),
+    ew1v1: extractLeaderboardStats(ew1v1Lb),
+    ewTeam: extractLeaderboardStats(ewTeamLb),
   };
 
   const civStats = computeCivStats(matches, resolvedProfileId);

@@ -308,7 +308,7 @@
     "recent_matches": "Recent Matches",
     "match_detection": "Live Match Detection",
     "waiting": "Waiting for match...",
-    "waiting_desc": "Keep this page open. We'll detect your match automatically when you queue ranked.",
+    "waiting_desc": "Keep this page open. We'll detect ranked automatch and custom lobby games automatically.",
     "match_found": "Match Found!",
     "opponent": "Opponent",
     "map": "Map",

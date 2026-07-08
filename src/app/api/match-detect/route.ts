@@ -2,12 +2,33 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import type { MatchSource } from "@/lib/aoe2/lobby";
 import WebSocket from "ws";
 
 export const dynamic = "force-dynamic";
 
 const LOBBY_WS_URL = "wss://data.aoe2lobby.com/ws/";
 const PING_INTERVAL_MS = 30_000;
+
+function emitPlayerMatch(
+  matches: Record<string, unknown>,
+  pid: number,
+  source: MatchSource,
+  sendSSE: (event: string, data: unknown) => void,
+): boolean {
+  for (const [matchId, matchData] of Object.entries(matches)) {
+    const match = matchData as Record<string, unknown>;
+    const slots = match.slots as Record<string, { profileid?: number }> | undefined;
+    if (!slots) continue;
+
+    const hasPlayer = Object.values(slots).some((slot) => Number(slot.profileid) === pid);
+    if (hasPlayer) {
+      sendSSE("match", { matchid: matchId, matchSource: source, ...match });
+      return true;
+    }
+  }
+  return false;
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -51,7 +72,7 @@ export async function GET(req: NextRequest) {
     const ws = new WebSocket(LOBBY_WS_URL);
     let pingTimer: ReturnType<typeof setInterval> | null = null;
     let closed = false;
-    let matchesSubscribed = false;
+    const subscribed = { spectate: false, lobby: false };
 
     const cleanup = () => {
       if (closed) return;
@@ -69,13 +90,13 @@ export async function GET(req: NextRequest) {
       writer.write(encoder.encode(payload)).catch(() => cleanup());
     };
 
-    const subscribeSpectateMatches = () => {
-      if (matchesSubscribed || ws.readyState !== WebSocket.OPEN) return;
-      matchesSubscribed = true;
+    const subscribeMatches = (context: MatchSource) => {
+      if (subscribed[context] || ws.readyState !== WebSocket.OPEN) return;
+      subscribed[context] = true;
       ws.send(JSON.stringify({
         action: "subscribe",
         type: "matches",
-        context: "spectate",
+        context,
       }));
     };
 
@@ -92,9 +113,9 @@ export async function GET(req: NextRequest) {
         context: "lobby",
         ids: [String(pid)],
       }));
-      // Subscribe immediately so users who start listening after the game began
-      // still get the current spectate_match_all snapshot.
-      subscribeSpectateMatches();
+      // Subscribe to both feeds immediately so late listeners still get snapshots.
+      subscribeMatches("spectate");
+      subscribeMatches("lobby");
 
       pingTimer = setInterval(() => {
         sendSSE("ping", { ts: Date.now() });
@@ -114,37 +135,37 @@ export async function GET(req: NextRequest) {
               steam_lobbyid: playerData.steam_lobbyid ?? null,
             });
 
-            if (playerData.matchid && playerData.status === "spectate") {
-              subscribeSpectateMatches();
+            if (playerData.matchid) {
+              if (playerData.status === "spectate") subscribeMatches("spectate");
+              if (playerData.status === "lobby") subscribeMatches("lobby");
             }
           }
         }
 
         if (msg.spectate_match_all) {
-          const matches = msg.spectate_match_all;
-          for (const [matchId, matchData] of Object.entries(matches)) {
+          emitPlayerMatch(msg.spectate_match_all, pid, "spectate", sendSSE);
+        }
+
+        if (msg.spectate_match_update) {
+          for (const [matchId, matchData] of Object.entries(msg.spectate_match_update)) {
             const match = matchData as Record<string, unknown>;
             const slots = match.slots as Record<string, { profileid?: number }> | undefined;
-            if (slots) {
-              const hasPlayer = Object.values(slots).some(s => Number(s.profileid) === pid);
-              if (hasPlayer) {
-                sendSSE("match", { matchid: matchId, ...match });
-                break;
-              }
+            if (slots && Object.values(slots).some((slot) => Number(slot.profileid) === pid)) {
+              sendSSE("match", { matchid: matchId, matchSource: "spectate", ...match });
             }
           }
         }
 
-        if (msg.spectate_match_update) {
-          const matches = msg.spectate_match_update;
-          for (const [matchId, matchData] of Object.entries(matches)) {
+        if (msg.lobby_match_all) {
+          emitPlayerMatch(msg.lobby_match_all, pid, "lobby", sendSSE);
+        }
+
+        if (msg.lobby_match_update) {
+          for (const [matchId, matchData] of Object.entries(msg.lobby_match_update)) {
             const match = matchData as Record<string, unknown>;
             const slots = match.slots as Record<string, { profileid?: number }> | undefined;
-            if (slots) {
-              const hasPlayer = Object.values(slots).some(s => Number(s.profileid) === pid);
-              if (hasPlayer) {
-                sendSSE("match", { matchid: matchId, ...match });
-              }
+            if (slots && Object.values(slots).some((slot) => Number(slot.profileid) === pid)) {
+              sendSSE("match", { matchid: matchId, matchSource: "lobby", ...match });
             }
           }
         }

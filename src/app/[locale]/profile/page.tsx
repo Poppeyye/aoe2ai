@@ -15,6 +15,15 @@ import MarkdownMessage from "@/components/ai/MarkdownMessage";
 import { readAssistantStream, type ClientAssistantStreamEvent } from "@/components/ai/chat-stream";
 import KofiHint from "@/components/ui/KofiHint";
 import { getCivName, SERVER_REGIONS } from "@/lib/aoe2/civs";
+import {
+  classifyMatch,
+  formatLobbySettings,
+  getMatchKindLabel,
+  inferScoutLeaderboard,
+  type MatchKind,
+  type MatchSource,
+  type ScoutLeaderboard,
+} from "@/lib/aoe2/lobby";
 import { PlaystyleBadge, RatingSparkline, formatRelativeTime } from "@/components/scout/OpponentExtras";
 
 interface LinkedProfile {
@@ -87,6 +96,7 @@ interface MatchSlot {
   name?: string;
   country?: string;
   steam_avatar?: string | null;
+  steam_profile?: string | null;
 }
 
 interface LiveMatch {
@@ -97,6 +107,29 @@ interface LiveMatch {
   slots: Record<string, MatchSlot>;
   start_time: number;
   hide_civilizations: boolean;
+  population?: number;
+  speed?: number;
+  starting_age?: number;
+  ending_age?: number;
+  mode?: number;
+  resources?: number;
+  reveal_map?: number;
+  treaty_length?: number;
+  lock_teams?: boolean;
+  team_together?: boolean;
+  team_positions?: boolean;
+  shared_exploration?: boolean;
+  turbo_mode?: boolean;
+  cheats?: boolean;
+  password?: boolean;
+  record?: boolean;
+  ranked_dm?: number;
+  slots_taken?: number;
+  slots_total?: number;
+  steam_lobbyid?: string | number;
+  host_profileid?: number;
+  matchSource?: MatchSource;
+  ew_mode?: boolean;
 }
 
 type ConnectionState = "disconnected" | "connecting" | "connected" | "match_found";
@@ -131,10 +164,56 @@ function getMatchParticipants(match: LiveMatch, myId: number) {
   return { mySlot, teammates, opponents, isTeamGame };
 }
 
+function getLeaderboardRating(
+  leaderboards: CompanionLeaderboard[] | undefined,
+  type: ScoutLeaderboard,
+): number | null {
+  const abbrMap: Record<ScoutLeaderboard, string> = {
+    rm_1v1: "RM 1v1",
+    rm_team: "RM Team",
+    ew_1v1: "EW 1v1",
+    ew_team: "EW Team",
+  };
+  const lb = leaderboards?.find(
+    (entry) => entry.abbreviation === abbrMap[type] || entry.leaderboardId === type,
+  );
+  return lb && lb.rating > 0 ? lb.rating : null;
+}
+
+function getScoutLbStats(
+  profile: Record<string, unknown> | undefined,
+  type: ScoutLeaderboard,
+): { rating?: number } | undefined {
+  if (!profile) return undefined;
+  const key =
+    type === "rm_team" ? "rmTeam" :
+    type === "ew_1v1" ? "ew1v1" :
+    type === "ew_team" ? "ewTeam" :
+    "rm1v1";
+  return profile[key] as { rating?: number } | undefined;
+}
+
+function getScoutRating(
+  profileId: number | null,
+  scouts: Array<{ slot: MatchSlot; data: Record<string, unknown> }>,
+  lbType: ScoutLeaderboard,
+): number | null {
+  if (!profileId) return null;
+  const scout = scouts.find((entry) => slotProfileId(entry.slot) === profileId);
+  const profile = scout?.data.profile as Record<string, unknown> | undefined;
+  const lb = getScoutLbStats(profile, lbType);
+  return lb && Number(lb.rating) > 0 ? Number(lb.rating) : null;
+}
+
+function formatRating(value: number | null, loading: boolean): string {
+  if (value !== null) return String(value);
+  return loading ? "…" : "—";
+}
+
 async function fetchOpponentScout(
   slot: MatchSlot,
   locale: string,
-  lb: "rm_1v1" | "rm_team",
+  lb: ScoutLeaderboard,
   myId: number,
   signal: AbortSignal,
 ) {
@@ -328,7 +407,7 @@ export default function ProfilePage() {
 
     es.addEventListener("status", (e) => {
       const data = JSON.parse(e.data);
-      if (data.status === "spectate" && data.matchid) {
+      if ((data.status === "spectate" || data.status === "lobby") && data.matchid) {
         setConnectionState("match_found");
       } else if (data.status === null && !data.matchid) {
         setConnectionState("connected");
@@ -423,7 +502,7 @@ export default function ProfilePage() {
     const abortController = new AbortController();
     scoutAbortRef.current = abortController;
 
-    const lb = isTeamGame ? "rm_team" : "rm_1v1";
+    const lb = inferScoutLeaderboard(liveMatch as unknown as Record<string, unknown>, isTeamGame);
     setScouting(true);
 
     Promise.all(
@@ -447,19 +526,32 @@ export default function ProfilePage() {
     const myCiv = Object.values(liveMatch.slots).find((s) => s.profileid === myId);
     const myCivName = myCiv ? getCivName(myCiv.civilization) : "Unknown";
     const isTeamGame = opponentScouts.length > 1;
+    const matchKind = classifyMatch(
+      liveMatch as unknown as Record<string, unknown>,
+      liveMatch.matchSource,
+    );
+    const scoutLb = inferScoutLeaderboard(liveMatch as unknown as Record<string, unknown>, isTeamGame);
+    const matchKindLabel = getMatchKindLabel(matchKind, locale as "en" | "es");
 
     const opponentsDesc = opponentScouts.map((opp) => {
       const oppCivName = !liveMatch.hide_civilizations ? getCivName(opp.slot.civilization) : "Unknown";
       const p = opp.data.profile as Record<string, unknown> | undefined;
       const civs = opp.data.civStats as CivStat[] | undefined;
       const topCivs = civs?.slice(0, 3).map((c) => `${c.civName} (${c.winRate}%)`).join(", ") || "N/A";
-      return `${p?.name || opp.slot.name || "Unknown"} (${oppCivName}): Rating ${p?.rating ?? "?"}, ${p?.wins ?? 0}W/${p?.losses ?? 0}L, streak ${p?.streak ?? 0}. Top civs: ${topCivs}`;
+      const primaryLb = getScoutLbStats(p, scoutLb);
+      const rating = primaryLb?.rating ?? p?.rating ?? "?";
+      const wins = (primaryLb as { wins?: number } | undefined)?.wins ?? p?.wins ?? 0;
+      const losses = (primaryLb as { losses?: number } | undefined)?.losses ?? p?.losses ?? 0;
+      return `${p?.name || opp.slot.name || "Unknown"} (${oppCivName}): Rating ${rating}, ${wins}W/${losses}L, streak ${p?.streak ?? 0}. Top civs: ${topCivs}`;
     }).join("\n");
+
+    const lobbyRows = formatLobbySettings(liveMatch as unknown as Record<string, unknown>, locale as "en" | "es");
+    const lobbySummary = lobbyRows.map((row) => `${row.label}: ${row.value}`).join(", ");
 
     const matchType = isTeamGame ? "team game" : "1v1";
     const prompt = locale === "es"
-      ? `Analiza este enfrentamiento ranked ${isTeamGame ? "de equipo" : "1v1"}. Yo juego ${myCivName} en ${liveMatch.map_name}.\n\nRivales:\n${opponentsDesc}\n\nDame un análisis táctico rápido y build order recomendado.`
-      : `Analyze this ranked ${matchType} matchup. I'm playing ${myCivName} on ${liveMatch.map_name}.\n\nOpponents:\n${opponentsDesc}\n\nGive me a quick tactical analysis and recommended build order.`;
+      ? `Analiza este enfrentamiento (${matchKindLabel}, ${matchType}). Yo juego ${myCivName} en ${liveMatch.map_name}.\n\nAjustes del lobby: ${lobbySummary}\n\nRivales:\n${opponentsDesc}\n\nDame un análisis táctico rápido y build order recomendado.`
+      : `Analyze this ${matchKindLabel} ${matchType} matchup. I'm playing ${myCivName} on ${liveMatch.map_name}.\n\nLobby settings: ${lobbySummary}\n\nOpponents:\n${opponentsDesc}\n\nGive me a quick tactical analysis and recommended build order.`;
 
     const combinedContext = isTeamGame
       ? { opponents: opponentScouts.map((o) => o.data), matchType: "team" }
@@ -597,6 +689,7 @@ export default function ProfilePage() {
             detecting={detecting}
             liveMatch={liveMatch}
             linkedProfile={linkedProfile}
+            playerStats={playerStats}
             opponentScouts={opponentScouts}
             scouting={scouting}
             aiText={aiText}
@@ -867,12 +960,63 @@ function ProfileLinker({
   );
 }
 
+function MatchPlayerLine({
+  slot,
+  name,
+  rating,
+  hideCivs,
+  ratingLoading,
+  highlight,
+}: {
+  slot: MatchSlot | null;
+  name: string;
+  rating: number | null;
+  hideCivs: boolean;
+  ratingLoading?: boolean;
+  highlight?: "ally" | "enemy" | "self";
+}) {
+  const civName = slot && !hideCivs ? getCivName(slot.civilization) : null;
+  const border =
+    highlight === "self" ? "border-amber-500/40" :
+    highlight === "ally" ? "border-green-500/30" :
+    highlight === "enemy" ? "border-red-500/30" :
+    "border-slate-700/40";
+
+  return (
+    <div className={cn("flex items-center gap-3 rounded-lg border bg-slate-800/40 px-3 py-2", border)}>
+      {slot?.steam_avatar ? (
+        <img src={slot.steam_avatar} alt="" className="w-9 h-9 rounded-full shrink-0" />
+      ) : (
+        <div className="w-9 h-9 rounded-full bg-slate-700 flex items-center justify-center shrink-0">
+          <UserCircle className="w-5 h-5 text-slate-500" />
+        </div>
+      )}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-semibold text-amber-100 truncate">{name}</span>
+          {slot?.country && (
+            <span className="text-[10px] text-slate-500 uppercase">{slot.country}</span>
+          )}
+        </div>
+        {civName && <div className="text-xs text-slate-400 mt-0.5">{civName}</div>}
+      </div>
+      <div className="text-right shrink-0">
+        <div className="text-[10px] text-slate-500 uppercase tracking-wider">ELO</div>
+        <div className="text-lg font-bold text-amber-200 tabular-nums">
+          {formatRating(rating, Boolean(ratingLoading))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LiveMatchPanel({
   t,
   connectionState,
   detecting,
   liveMatch,
   linkedProfile,
+  playerStats,
   opponentScouts,
   scouting,
   aiText,
@@ -889,6 +1033,7 @@ function LiveMatchPanel({
   detecting: boolean;
   liveMatch: LiveMatch | null;
   linkedProfile: LinkedProfile;
+  playerStats: PlayerStats | null;
   opponentScouts: Array<{ slot: MatchSlot; data: Record<string, unknown> }>;
   scouting: boolean;
   aiText: string;
@@ -909,6 +1054,19 @@ function LiveMatchPanel({
   const myTeamSlots = teammates;
 
   const aiStarted = aiText.length > 0 || aiLoading;
+  const matchKind: MatchKind | null = liveMatch
+    ? classifyMatch(liveMatch as unknown as Record<string, unknown>, liveMatch.matchSource)
+    : null;
+  const scoutLb: ScoutLeaderboard = liveMatch
+    ? inferScoutLeaderboard(liveMatch as unknown as Record<string, unknown>, isTeamGame)
+    : "rm_1v1";
+  const isEwMatch = scoutLb.startsWith("ew_");
+  const myRating =
+    getScoutRating(myId ?? null, opponentScouts, scoutLb) ??
+    getLeaderboardRating(playerStats?.leaderboards, scoutLb);
+  const lobbySettings = liveMatch ? formatLobbySettings(liveMatch as unknown as Record<string, unknown>, locale) : [];
+  const canAnalyze = opponentScouts.length > 0 && !scouting;
+  const inLobbyWaiting = liveMatch?.matchSource === "lobby" && allOpponentSlots.length === 0;
 
   return (
     <div className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 backdrop-blur-sm border border-amber-900/30 rounded-xl p-6">
@@ -967,15 +1125,35 @@ function LiveMatchPanel({
       {liveMatch && (
         <div className="space-y-4">
           {/* Match Info Header */}
-          <div className="bg-slate-900/60 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
+          <div className="bg-slate-900/60 rounded-lg p-4 space-y-4">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-medium text-green-400 bg-green-500/10 px-2 py-1 rounded">
                   {t.match_found}
                 </span>
                 {isTeamGame && (
                   <span className="text-xs font-medium text-blue-400 bg-blue-500/10 px-2 py-1 rounded">
-                    Team Game
+                    {locale === "es" ? "Partida de equipo" : "Team Game"}
+                  </span>
+                )}
+                {matchKind && (
+                  <span className={cn(
+                    "text-xs font-medium px-2 py-1 rounded",
+                    matchKind === "ranked" || matchKind === "ew_ranked"
+                      ? "text-amber-400 bg-amber-500/10"
+                      : "text-purple-400 bg-purple-500/10",
+                  )}>
+                    {getMatchKindLabel(matchKind, locale)}
+                  </span>
+                )}
+                {liveMatch.matchSource === "lobby" && (
+                  <span className="text-xs font-medium text-slate-400 bg-slate-800/80 px-2 py-1 rounded">
+                    {locale === "es" ? "En lobby" : "In lobby"}
+                  </span>
+                )}
+                {liveMatch.hide_civilizations && (
+                  <span className="text-xs font-medium text-slate-400 bg-slate-800/80 px-2 py-1 rounded">
+                    {locale === "es" ? "Civs ocultas" : "Hidden civs"}
                   </span>
                 )}
               </div>
@@ -984,68 +1162,121 @@ function LiveMatchPanel({
               </span>
             </div>
 
+            {liveMatch.description && (
+              <p className="text-sm text-slate-300">{liveMatch.description}</p>
+            )}
+
+            {/* Lobby settings */}
+            {lobbySettings.length > 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                {lobbySettings.map((row) => (
+                  <div key={row.label} className="bg-slate-800/50 rounded-md px-2.5 py-2">
+                    <div className="text-[10px] text-slate-500 uppercase tracking-wider">{row.label}</div>
+                    <div className="text-xs text-slate-200 font-medium truncate" title={row.value}>{row.value}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {inLobbyWaiting && (
+              <p className="text-sm text-slate-400 text-center py-2">
+                {locale === "es"
+                  ? "Lobby detectado — esperando rivales..."
+                  : "Lobby detected — waiting for opponents..."}
+              </p>
+            )}
+
             {/* 1v1 layout */}
             {!isTeamGame && allOpponentSlots.length === 1 && (
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex-1 text-center">
-                  <div className="text-sm font-bold text-amber-100">{linkedProfile.name}</div>
-                  <div className="text-xs text-slate-400 mt-1">
-                    {mySlot && !liveMatch.hide_civilizations ? getCivName(mySlot.civilization) : "—"}
-                  </div>
-                </div>
-                <div className="text-amber-500 font-bold text-lg">VS</div>
-                <div className="flex-1 text-center">
-                  <div className="text-sm font-bold text-amber-100">
-                    {allOpponentSlots[0]?.name || "Opponent"}
-                  </div>
-                  <div className="text-xs text-slate-400 mt-1">
-                    {allOpponentSlots[0] && !liveMatch.hide_civilizations
-                      ? getCivName(allOpponentSlots[0].civilization)
-                      : "—"}
-                  </div>
-                </div>
+              <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-center">
+                <MatchPlayerLine
+                  slot={mySlot}
+                  name={linkedProfile.name || "You"}
+                  rating={myRating}
+                  hideCivs={liveMatch.hide_civilizations}
+                  ratingLoading={scouting}
+                  highlight="self"
+                />
+                <div className="text-amber-500 font-bold text-lg px-1">VS</div>
+                <MatchPlayerLine
+                  slot={allOpponentSlots[0]}
+                  name={allOpponentSlots[0]?.name || t.opponent}
+                  rating={getScoutRating(slotProfileId(allOpponentSlots[0]), opponentScouts, scoutLb)}
+                  hideCivs={liveMatch.hide_civilizations}
+                  ratingLoading={scouting}
+                  highlight="enemy"
+                />
               </div>
             )}
 
             {/* Team game layout */}
             {isTeamGame && (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <div className="text-xs text-green-400 font-medium mb-2 uppercase tracking-wider">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <div className="text-xs text-green-400 font-medium uppercase tracking-wider">
                     {locale === "es" ? "Tu equipo" : "Your Team"}
                   </div>
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="font-bold text-amber-100">{linkedProfile.name}</span>
-                      {mySlot && !liveMatch.hide_civilizations && (
-                        <span className="text-xs text-slate-400">{getCivName(mySlot.civilization)}</span>
-                      )}
-                    </div>
-                    {myTeamSlots.map((s) => (
-                      <div key={s.profileid} className="flex items-center gap-2 text-sm">
-                        <span className="text-slate-300">{s.name || `Player ${s.profileid}`}</span>
-                        {!liveMatch.hide_civilizations && (
-                          <span className="text-xs text-slate-500">{getCivName(s.civilization)}</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                  <MatchPlayerLine
+                    slot={mySlot}
+                    name={linkedProfile.name || "You"}
+                    rating={myRating}
+                    hideCivs={liveMatch.hide_civilizations}
+                    ratingLoading={scouting}
+                    highlight="self"
+                  />
+                  {myTeamSlots.map((slot) => (
+                    <MatchPlayerLine
+                      key={slotProfileId(slot) ?? slot.name}
+                      slot={slot}
+                      name={slot.name || `Player ${slotProfileId(slot)}`}
+                      rating={getScoutRating(slotProfileId(slot), opponentScouts, scoutLb)}
+                      hideCivs={liveMatch.hide_civilizations}
+                      ratingLoading={scouting}
+                      highlight="ally"
+                    />
+                  ))}
                 </div>
-                <div>
-                  <div className="text-xs text-red-400 font-medium mb-2 uppercase tracking-wider">
+                <div className="space-y-2">
+                  <div className="text-xs text-red-400 font-medium uppercase tracking-wider">
                     {locale === "es" ? "Equipo rival" : "Enemy Team"}
                   </div>
-                  <div className="space-y-1.5">
-                    {allOpponentSlots.map((s) => (
-                      <div key={s.profileid} className="flex items-center gap-2 text-sm">
-                        <span className="text-slate-300">{s.name || `Player ${s.profileid}`}</span>
-                        {!liveMatch.hide_civilizations && (
-                          <span className="text-xs text-slate-500">{getCivName(s.civilization)}</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                  {allOpponentSlots.map((slot) => (
+                    <MatchPlayerLine
+                      key={slotProfileId(slot) ?? slot.name}
+                      slot={slot}
+                      name={slot.name || `Player ${slotProfileId(slot)}`}
+                      rating={getScoutRating(slotProfileId(slot), opponentScouts, scoutLb)}
+                      hideCivs={liveMatch.hide_civilizations}
+                      ratingLoading={scouting}
+                      highlight="enemy"
+                    />
+                  ))}
                 </div>
+              </div>
+            )}
+
+            {/* Fallback when layout doesn't match 1v1 or team */}
+            {!isTeamGame && allOpponentSlots.length !== 1 && allOpponentSlots.length > 0 && (
+              <div className="space-y-2">
+                <MatchPlayerLine
+                  slot={mySlot}
+                  name={linkedProfile.name || "You"}
+                  rating={myRating}
+                  hideCivs={liveMatch.hide_civilizations}
+                  ratingLoading={scouting}
+                  highlight="self"
+                />
+                {allOpponentSlots.map((slot) => (
+                  <MatchPlayerLine
+                    key={slotProfileId(slot) ?? slot.name}
+                    slot={slot}
+                    name={slot.name || t.opponent}
+                    rating={getScoutRating(slotProfileId(slot), opponentScouts, scoutLb)}
+                    hideCivs={liveMatch.hide_civilizations}
+                    ratingLoading={scouting}
+                    highlight="enemy"
+                  />
+                ))}
               </div>
             )}
           </div>
@@ -1062,8 +1293,17 @@ function LiveMatchPanel({
             <div className="space-y-4">
               {opponentScouts.map((opp) => {
                 const p = opp.data.profile as Record<string, unknown> | undefined;
+                const hasProfile = Boolean(p && (p.name || p.profileId));
                 const rm1v1 = p?.rm1v1 as Record<string, number | string | null> | undefined;
                 const rmTeam = p?.rmTeam as Record<string, number | string | null> | undefined;
+                const ew1v1 = p?.ew1v1 as Record<string, number | string | null> | undefined;
+                const ewTeam = p?.ewTeam as Record<string, number | string | null> | undefined;
+                const col1 = isEwMatch ? ew1v1 : rm1v1;
+                const col2 = isEwMatch ? ewTeam : rmTeam;
+                const col1Label = isEwMatch ? "EW 1v1" : "RM 1v1";
+                const col2Label = isEwMatch ? "EW Team" : "RM Team";
+                const col1Active = scoutLb === (isEwMatch ? "ew_1v1" : "rm_1v1");
+                const col2Active = scoutLb === (isEwMatch ? "ew_team" : "rm_team");
                 const civs = opp.data.civStats as CivStat[] | undefined;
                 const maps = opp.data.mapStats as { map: string; games: number; wins: number; losses: number }[] | undefined;
                 const form = opp.data.recentForm as string[] | undefined;
@@ -1077,12 +1317,14 @@ function LiveMatchPanel({
                   recent: Array<{ map: string; won: boolean; myCiv: string; opponentCiv: string; date: number; ratingChange: number }>;
                 } | null | undefined;
                 const clan = typeof p?.clan === "string" ? p.clan : null;
-                const primaryLb = isTeamGame ? rmTeam : rm1v1;
+                const primaryLb = getScoutLbStats(p, scoutLb) as Record<string, number | string | null> | undefined;
                 const lastMatchTime = primaryLb?.lastMatchTime;
                 const lastMatchTs = typeof lastMatchTime === "string" && lastMatchTime
                   ? Math.floor(new Date(lastMatchTime).getTime() / 1000)
                   : null;
                 const rankCountry = Number(primaryLb?.rankCountry ?? 0);
+                const displayName = String(p?.name || opp.slot.name || t.opponent);
+                const profileId = slotProfileId(opp.slot);
 
                 // Current match context cross-references
                 const currentMapName = liveMatch.map_name;
@@ -1092,16 +1334,18 @@ function LiveMatchPanel({
                 const currentCivName = !liveMatch.hide_civilizations ? getCivName(opp.slot.civilization) : null;
                 const civStat = currentCivName && civs?.find((c) => c.civName.toLowerCase() === currentCivName.toLowerCase());
 
-                if (!p) return null;
-
                 return (
-                  <div key={opp.slot.profileid} className="bg-slate-900/60 rounded-lg p-4 space-y-3">
+                  <div key={profileId ?? displayName} className="bg-slate-900/60 rounded-lg p-4 space-y-3">
                     {/* Header */}
                     <div className="flex items-start justify-between gap-3 flex-wrap">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h4 className="text-sm font-bold text-amber-100 flex items-center gap-2">
-                          <Target className="w-4 h-4 text-amber-500" />
-                          {String(p.name || opp.slot.name || "Unknown")}
+                        {opp.slot.steam_avatar ? (
+                          <img src={opp.slot.steam_avatar} alt="" className="w-8 h-8 rounded-full" />
+                        ) : (
+                          <Target className="w-4 h-4 text-amber-500 shrink-0" />
+                        )}
+                        <h4 className="text-sm font-bold text-amber-100 flex items-center gap-2 flex-wrap">
+                          {displayName}
                         </h4>
                         {clan && (
                           <span className="text-[10px] font-mono text-slate-400 bg-slate-800/70 px-1.5 py-0.5 rounded">
@@ -1120,13 +1364,32 @@ function LiveMatchPanel({
                             {formatRelativeTime(lastMatchTs, locale)}
                           </span>
                         )}
-                        {typeof p.country === "string" && p.country && (
-                          <span>{p.country.toUpperCase()}</span>
+                        {(typeof p?.country === "string" && p.country) || opp.slot.country ? (
+                          <span>{String(p?.country || opp.slot.country).toUpperCase()}</span>
+                        ) : null}
+                        {opp.slot.steam_profile && (
+                          <a
+                            href={opp.slot.steam_profile}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-amber-500/80 hover:text-amber-400"
+                          >
+                            Steam
+                          </a>
                         )}
                       </div>
                     </div>
 
-                    {/* Current match highlights — map WR + civ WR */}
+                    {!hasProfile && (
+                      <div className="text-xs text-amber-400/90 bg-amber-500/10 border border-amber-500/20 rounded-md px-3 py-2">
+                        {locale === "es"
+                          ? "No se pudieron cargar las estadísticas completas. Mostrando datos del lobby."
+                          : "Could not load full stats. Showing lobby data only."}
+                      </div>
+                    )}
+
+                    {hasProfile && (
+                      <>
                     {(mapStatWr !== null || civStat) && (
                       <div className="flex items-center gap-2 flex-wrap">
                         {mapStatWr !== null && mapStat && (
@@ -1202,42 +1465,50 @@ function LiveMatchPanel({
 
                     {/* Dual ELO ratings */}
                     <div className="grid grid-cols-2 gap-3">
-                      <div className={cn("rounded-lg p-3 border", rm1v1 && Number(rm1v1.rating) > 0 ? "bg-slate-800/60 border-slate-700/50" : "bg-slate-800/30 border-slate-700/20")}>
-                        <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">RM 1v1</div>
-                        {rm1v1 && Number(rm1v1.rating) > 0 ? (
+                      <div className={cn(
+                        "rounded-lg p-3 border",
+                        col1 && Number(col1.rating) > 0 ? "bg-slate-800/60 border-slate-700/50" : "bg-slate-800/30 border-slate-700/20",
+                        col1Active && "ring-1 ring-amber-500/40",
+                      )}>
+                        <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">{col1Label}</div>
+                        {col1 && Number(col1.rating) > 0 ? (
                           <div className="space-y-1">
                             <div className="flex items-baseline gap-2">
-                              <span className="text-xl font-bold text-amber-100">{String(rm1v1.rating)}</span>
-                              <span className="text-xs text-slate-500">#{String(rm1v1.rank)}</span>
-                              {!isTeamGame && ratingHistory && ratingHistory.length > 1 && (
+                              <span className="text-xl font-bold text-amber-100">{String(col1.rating)}</span>
+                              <span className="text-xs text-slate-500">#{String(col1.rank)}</span>
+                              {col1Active && ratingHistory && ratingHistory.length > 1 && (
                                 <RatingSparkline points={ratingHistory} width={70} height={20} />
                               )}
                             </div>
                             <div className="flex items-center gap-3 text-xs flex-wrap">
-                              <span><span className="text-green-400">{String(rm1v1.wins)}W</span> / <span className="text-red-400">{String(rm1v1.losses)}L</span></span>
-                              <span className="text-slate-400">{String(rm1v1.winRate)}%</span>
-                              <span className="text-slate-500">{locale === "es" ? "Pico" : "Peak"}: {String(rm1v1.highestRating)}</span>
+                              <span><span className="text-green-400">{String(col1.wins)}W</span> / <span className="text-red-400">{String(col1.losses)}L</span></span>
+                              <span className="text-slate-400">{String(col1.winRate)}%</span>
+                              <span className="text-slate-500">{locale === "es" ? "Pico" : "Peak"}: {String(col1.highestRating)}</span>
                             </div>
                           </div>
                         ) : (
                           <span className="text-xs text-slate-600">{locale === "es" ? "Sin datos" : "No data"}</span>
                         )}
                       </div>
-                      <div className={cn("rounded-lg p-3 border", rmTeam && Number(rmTeam.rating) > 0 ? "bg-slate-800/60 border-slate-700/50" : "bg-slate-800/30 border-slate-700/20")}>
-                        <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">RM Team</div>
-                        {rmTeam && Number(rmTeam.rating) > 0 ? (
+                      <div className={cn(
+                        "rounded-lg p-3 border",
+                        col2 && Number(col2.rating) > 0 ? "bg-slate-800/60 border-slate-700/50" : "bg-slate-800/30 border-slate-700/20",
+                        col2Active && "ring-1 ring-amber-500/40",
+                      )}>
+                        <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">{col2Label}</div>
+                        {col2 && Number(col2.rating) > 0 ? (
                           <div className="space-y-1">
                             <div className="flex items-baseline gap-2">
-                              <span className="text-xl font-bold text-amber-100">{String(rmTeam.rating)}</span>
-                              <span className="text-xs text-slate-500">#{String(rmTeam.rank)}</span>
-                              {isTeamGame && ratingHistory && ratingHistory.length > 1 && (
+                              <span className="text-xl font-bold text-amber-100">{String(col2.rating)}</span>
+                              <span className="text-xs text-slate-500">#{String(col2.rank)}</span>
+                              {col2Active && ratingHistory && ratingHistory.length > 1 && (
                                 <RatingSparkline points={ratingHistory} width={70} height={20} />
                               )}
                             </div>
                             <div className="flex items-center gap-3 text-xs flex-wrap">
-                              <span><span className="text-green-400">{String(rmTeam.wins)}W</span> / <span className="text-red-400">{String(rmTeam.losses)}L</span></span>
-                              <span className="text-slate-400">{String(rmTeam.winRate)}%</span>
-                              <span className="text-slate-500">{locale === "es" ? "Pico" : "Peak"}: {String(rmTeam.highestRating)}</span>
+                              <span><span className="text-green-400">{String(col2.wins)}W</span> / <span className="text-red-400">{String(col2.losses)}L</span></span>
+                              <span className="text-slate-400">{String(col2.winRate)}%</span>
+                              <span className="text-slate-500">{locale === "es" ? "Pico" : "Peak"}: {String(col2.highestRating)}</span>
                             </div>
                           </div>
                         ) : (
@@ -1248,10 +1519,10 @@ function LiveMatchPanel({
 
                     {/* Extra stats row */}
                     <div className="flex items-center gap-4 text-xs flex-wrap">
-                      {Number(p.streak ?? 0) !== 0 && (
-                        <span className={cn("flex items-center gap-1", Number(p.streak) >= 0 ? "text-green-400" : "text-red-400")}>
-                          {Number(p.streak) >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                          {locale === "es" ? "Racha" : "Streak"}: {String(p.streak)}
+                      {Number(p?.streak ?? 0) !== 0 && (
+                        <span className={cn("flex items-center gap-1", Number(p?.streak) >= 0 ? "text-green-400" : "text-red-400")}>
+                          {Number(p?.streak) >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                          {locale === "es" ? "Racha" : "Streak"}: {String(p?.streak)}
                         </span>
                       )}
                       {rankCountry > 0 && (
@@ -1393,33 +1664,39 @@ function LiveMatchPanel({
                         </div>
                       </div>
                     )}
+                      </>
+                    )}
                   </div>
                 );
               })}
+            </div>
+          )}
 
-              {/* AI Analysis Button or Results */}
-              {!aiStarted ? (
-                <button
-                  onClick={onAnalyze}
-                  className="btn-primary w-full flex items-center justify-center gap-2"
-                >
-                  <Sparkles className="w-4 h-4" />
-                  {locale === "es" ? "Análisis táctico con IA" : "AI Tactical Analysis"}
-                </button>
-              ) : (
-                <div className="bg-slate-900/60 rounded-lg p-4">
-                  <h4 className="text-sm font-bold text-amber-100 mb-2 flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-amber-500" /> {t.auto_scout}
-                  </h4>
-                  {aiActivities.length > 0 && (
-                    <ToolActivityPanel activities={aiActivities} locale={locale} />
-                  )}
-                  {aiText && <MarkdownMessage content={aiText} />}
-                  {aiLoading && !aiText && (
-                    <div className="flex items-center gap-2 text-amber-400 text-sm py-2">
-                      <Loader2 className="w-4 h-4 animate-spin" /> {t.scouting}
-                    </div>
-                  )}
+          {/* AI Analysis Button or Results */}
+          {!aiStarted ? (
+            <button
+              onClick={onAnalyze}
+              disabled={!canAnalyze}
+              className={cn(
+                "btn-primary w-full flex items-center justify-center gap-2",
+                !canAnalyze && "opacity-50 cursor-not-allowed",
+              )}
+            >
+              <Sparkles className="w-4 h-4" />
+              {locale === "es" ? "Análisis táctico con IA" : "AI Tactical Analysis"}
+            </button>
+          ) : (
+            <div className="bg-slate-900/60 rounded-lg p-4">
+              <h4 className="text-sm font-bold text-amber-100 mb-2 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-500" /> {t.auto_scout}
+              </h4>
+              {aiActivities.length > 0 && (
+                <ToolActivityPanel activities={aiActivities} locale={locale} />
+              )}
+              {aiText && <MarkdownMessage content={aiText} />}
+              {aiLoading && !aiText && (
+                <div className="flex items-center gap-2 text-amber-400 text-sm py-2">
+                  <Loader2 className="w-4 h-4 animate-spin" /> {t.scouting}
                 </div>
               )}
             </div>

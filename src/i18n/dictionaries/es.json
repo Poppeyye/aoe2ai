@@ -308,7 +308,7 @@
     "recent_matches": "Partidas Recientes",
     "match_detection": "Detección de Partida en Vivo",
     "waiting": "Esperando partida...",
-    "waiting_desc": "Mantén esta página abierta. Detectaremos tu partida automáticamente cuando busques ranked.",
+    "waiting_desc": "Mantén esta página abierta. Detectaremos automáticamente ranked automatch y lobbies custom.",
     "match_found": "¡Partida Encontrada!",
     "opponent": "Oponente",
     "map": "Mapa",

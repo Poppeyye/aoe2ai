@@ -35,7 +35,12 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const lbType = params.get("lb") === "rm_team" ? "rm_team" as const : "rm_1v1" as const;
+    const lbParam = params.get("lb");
+    const lbType =
+      lbParam === "rm_team" ? "rm_team" as const :
+      lbParam === "ew_1v1" ? "ew_1v1" as const :
+      lbParam === "ew_team" ? "ew_team" as const :
+      "rm_1v1" as const;
 
     const vsParam = params.get("vs");
     let vsProfileId: number | undefined;
