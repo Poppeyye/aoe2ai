@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseReplay } from "@/lib/replay/parser";
 import type { PlayerStats } from "@/lib/replay/parser";
-import { analyzeReplay, buildReplayAiContext } from "@/lib/ai/replay-analyzer";
+import { analyzeReplay, buildReplayAiContext, computeRootCauseAnalysis } from "@/lib/ai/replay-analyzer";
 import { hasOpenAIKey } from "@/lib/ai/openai-client";
 import type { AiLocale } from "@/lib/ai/tools";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
@@ -66,6 +66,7 @@ export async function POST(req: NextRequest) {
     const timeline = [...ageUps, ...data.timeline].sort((a, b) => a.time - b.time);
 
     const aiEnabled = hasOpenAIKey();
+    const rootCause = computeRootCauseAnalysis(data, extra);
     const analysis = aiEnabled
       ? { chronicle: "", aiContext: buildReplayAiContext(data, extra), raw: data }
       : await analyzeReplay(data, locale);
@@ -75,6 +76,7 @@ export async function POST(req: NextRequest) {
       chronicle: analysis.chronicle,
       aiContext: analysis.aiContext,
       aiEnabled,
+      rootCause,
       version: data.version,
       map: data.map.name,
       mapSize: data.map.size,

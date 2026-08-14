@@ -2,13 +2,14 @@ import type { MetadataRoute } from "next";
 import { BUILD_ORDERS } from "@/lib/aoe2/build-orders";
 import { fetchTechTreeData } from "@/lib/api/techtree";
 import { civKeyToSlug } from "@/lib/api/civ-detail";
+import { POPULAR_MATCHUPS } from "@/lib/aoe2/matchups";
 
 const BASE_URL = "https://aoe2.ai";
 const LOCALES = ["en", "es"] as const;
 
-const LAST_MODIFIED = new Date("2026-07-05");
+const LAST_MODIFIED = new Date();
 
-// Fallback in case the remote tech tree data is unavailable at request time
+// Fallback in case remote tech tree data is unavailable or slow
 const FALLBACK_CIV_KEYS = [
   "Armenians", "Aztecs", "Bengalis", "Berbers", "Bohemians", "Britons",
   "Bulgarians", "Burgundians", "Burmese", "Byzantines", "Celts", "Chinese",
@@ -27,11 +28,13 @@ interface PageDef {
   changeFrequency: MetadataRoute.Sitemap[number]["changeFrequency"];
 }
 
-const PAGES: PageDef[] = [
+const STATIC_PAGES: PageDef[] = [
   { path: "", priority: 1.0, changeFrequency: "weekly" },
-  { path: "/agent", priority: 0.9, changeFrequency: "monthly" },
-  { path: "/live", priority: 0.9, changeFrequency: "monthly" },
-  { path: "/replay", priority: 0.8, changeFrequency: "monthly" },
+  { path: "/agent", priority: 0.9, changeFrequency: "weekly" },
+  { path: "/live", priority: 0.9, changeFrequency: "weekly" },
+  { path: "/replay", priority: 0.8, changeFrequency: "weekly" },
+  { path: "/matchups", priority: 0.85, changeFrequency: "weekly" },
+  { path: "/guides/how-to-beat-extreme-ai", priority: 0.85, changeFrequency: "monthly" },
   { path: "/techtree", priority: 0.8, changeFrequency: "monthly" },
   { path: "/players", priority: 0.7, changeFrequency: "daily" },
   { path: "/learn", priority: 0.7, changeFrequency: "monthly" },
@@ -60,25 +63,39 @@ function entriesFor(
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const entries: MetadataRoute.Sitemap = [];
 
-  for (const { path, priority, changeFrequency } of PAGES) {
+  // Static core pages
+  for (const { path, priority, changeFrequency } of STATIC_PAGES) {
     entries.push(...entriesFor(path, priority, changeFrequency));
   }
 
-  // Civilization guide pages
+  // Popular Matchups
+  for (const matchup of POPULAR_MATCHUPS) {
+    entries.push(...entriesFor(`/matchups/${matchup.slug}`, 0.75, "weekly"));
+  }
+
+  // Civilization guide pages with safe timeout fallback
   let civKeys = FALLBACK_CIV_KEYS;
   try {
-    const data = await fetchTechTreeData();
-    civKeys = Object.keys(data.civs);
+    const dataPromise = fetchTechTreeData();
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Timeout")), 2000),
+    );
+    const data = await Promise.race([dataPromise, timeoutPromise]);
+    if (data && data.civs) {
+      civKeys = Object.keys(data.civs);
+    }
   } catch {
-    // use fallback list
+    // fallback to static list safely
+    civKeys = FALLBACK_CIV_KEYS;
   }
+
   for (const key of civKeys.sort()) {
-    entries.push(...entriesFor(`/techtree/${civKeyToSlug(key)}`, 0.6, "monthly"));
+    entries.push(...entriesFor(`/techtree/${civKeyToSlug(key)}`, 0.65, "monthly"));
   }
 
   // Build order pages
   for (const bo of BUILD_ORDERS) {
-    entries.push(...entriesFor(`/learn/${bo.id}`, 0.6, "monthly"));
+    entries.push(...entriesFor(`/learn/${bo.id}`, 0.65, "monthly"));
   }
 
   return entries;

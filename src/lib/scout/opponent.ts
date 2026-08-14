@@ -93,6 +93,32 @@ export type PlaystyleTag =
   | "flex"
   | "boom";
 
+export interface TacticalBriefing {
+  playerProfile: {
+    headline: { en: string; es: string };
+    detail: { en: string; es: string };
+    tag: string;
+  };
+  matchupAdvantage: {
+    headline: { en: string; es: string };
+    detail: { en: string; es: string };
+  };
+  threeStepPlan: {
+    step1Opening: {
+      title: { en: string; es: string };
+      detail: { en: string; es: string };
+    };
+    step2Warning: {
+      title: { en: string; es: string };
+      detail: { en: string; es: string };
+    };
+    step3WinCondition: {
+      title: { en: string; es: string };
+      detail: { en: string; es: string };
+    };
+  };
+}
+
 export interface ScoutReport {
   profile: ScoutProfile;
   civStats: CivStat[];
@@ -105,6 +131,7 @@ export interface ScoutReport {
   playstyle: PlaystyleTag | null;
   ratingHistory: number[];
   headToHead: HeadToHead | null;
+  tacticalBriefing: TacticalBriefing;
 }
 
 const CIV_COUNTERS: Record<string, CivRecommendation[]> = {
@@ -539,6 +566,15 @@ export async function buildScoutReport({
     ? computeHeadToHead(matches, resolvedProfileId, vsProfileId)
     : null;
 
+  const tacticalBriefing = computeTacticalBriefing({
+    profile,
+    civStats,
+    mapStats,
+    recentForm,
+    avgGameDuration,
+    playstyle,
+  });
+
   return {
     profile,
     civStats,
@@ -551,5 +587,168 @@ export async function buildScoutReport({
     playstyle,
     ratingHistory,
     headToHead,
+    tacticalBriefing,
+  };
+}
+
+export function computeTacticalBriefing(params: {
+  profile: ScoutProfile;
+  civStats: CivStat[];
+  mapStats: MapStat[];
+  recentForm: ("W" | "L")[];
+  avgGameDuration: number;
+  playstyle: PlaystyleTag | null;
+}): TacticalBriefing {
+  const { civStats, mapStats, recentForm, playstyle } = params;
+  const topCiv = civStats[0]?.civName || "Unknown";
+  const topCivWinRate = civStats[0]?.winRate || 50;
+  const topMap = mapStats[0]?.map || "Arabia";
+
+  let profileHeadline = {
+    en: "Balanced Ladder Competitor",
+    es: "Competidor Versátil de Ranked",
+  };
+  let profileDetail = {
+    en: `Plays frequently on ${topMap} with ${topCiv} (${topCivWinRate}% WR). Shows steady macro-oriented play.`,
+    es: `Juega habitualmente en ${topMap} con ${topCiv} (${topCivWinRate}% WR). Su estilo se apoya en macro constante.`,
+  };
+
+  let step1 = {
+    title: { en: "1. Opening Strategy", es: "1. Estrategia de Apertura" },
+    detail: {
+      en: "Open 19-20 Pop Scouts to scout their base and contest map control early.",
+      es: "Abre 19-20 Pop con Exploradores para ganar control del mapa y explorar sus recursos.",
+    },
+  };
+  let step2 = {
+    title: { en: "2. Early Warning Spike", es: "2. Alerta de Power Spike" },
+    detail: {
+      en: "Expect Feudal army active around 11:00-12:00. Keep defensive walls or spears ready.",
+      es: "Anticipa presión militar entre 11:00 y 12:00. Ten empalizadas o lanceros en puntos ciegos.",
+    },
+  };
+  let step3 = {
+    title: { en: "3. Win Condition Target", es: "3. Condición de Victoria" },
+    detail: {
+      en: "Reach Castle Age with 2+ production buildings and transition into heavy cavalry or cross-counter composition.",
+      es: "Llega a Castillos con 2+ edificios militares y haz transición a caballería pesada o masa de asedio.",
+    },
+  };
+
+  if (playstyle === "cavalry") {
+    profileHeadline = {
+      en: "Aggressive Cavalry Specialist",
+      es: "Especialista en Caballería y Agresividad",
+    };
+    profileDetail = {
+      en: `Heavily relies on mobile cavalry openings (${topCiv}). Vulnerable to early spearmen defense, quick walls, and Castle Age Monks/Camels.`,
+      es: `Prefiere aperturas rápidas de caballería (${topCiv}). Es vulnerable a empalizadas tempranas, piqueros bien colocados y monjes en Castillos.`,
+    };
+    step1 = {
+      title: { en: "1. Opening (19 Pop Scouts or Wall & Archers)", es: "1. Apertura (19 Pop Scouts o Muros + Arqueros)" },
+      detail: {
+        en: "Open Scouts or quick-wall your woodlines and produce 1 spearman per exposed resource.",
+        es: "Abre con Exploradores o amuralla tus madereras rápido con 1 piquero de soporte por recurso expuesto.",
+      },
+    };
+    step2 = {
+      title: { en: "2. Early Warning (Min 10:30 - 13:00)", es: "2. Alerta Temprana (Min 10:30 - 13:00)" },
+      detail: {
+        en: "Watch for 3-5 scout harass on your berries/woodline. Protect your villagers under TC fire.",
+        es: "Atento a incursiones de 3 a 5 exploradores en bayas o madera. No te expongas fuera del rango del Centro Urbano.",
+      },
+    };
+    step3 = {
+      title: { en: "3. Win Condition (Castle Age Monks / Camels / Halbs)", es: "3. Condición de Victoria (Monjes / Camellos / Piqueros)" },
+      detail: {
+        en: "Drop a Monastery and Siege Workshop upon hitting Castle Age. Convert knights and counter-push with Mangonels.",
+        es: "Mete Monasterio y Taller de Asedio nada más llegar a Castillos. Convierte jinetes y contraataca con Mangonelas.",
+      },
+    };
+  } else if (playstyle === "archers") {
+    profileHeadline = {
+      en: "Ranged Mass & Micro Player",
+      es: "Jugador de Rango y Microgestión de Arqueros",
+    };
+    profileDetail = {
+      en: `Favors 2-range archer build orders (${topCiv}). Seeks to group 20+ Crossbows with Bodkin Arrow. Vulnerable to Skirmishers + Armor and fast Mangonels.`,
+      es: `Suele jugar a 2 Galerías de Tiro (${topCiv}). Busca juntar 20+ Ballesteros con flecha punzón. Vulnerable a Guerrilleros con armadura y Mangonelas.`,
+    };
+    step1 = {
+      title: { en: "1. Opening (19 Pop Scouts or 20 Pop Skirmishers)", es: "1. Apertura (19 Pop Scouts o Guerrilleros)" },
+      detail: {
+        en: "Open Scouts to delay their archer mass or mix in 4-6 Skirmishers with Scale Mail armor.",
+        es: "Abre con Exploradores para cazar arqueros en tránsito o añade 4-6 Guerrilleros con armadura de herrería.",
+      },
+    };
+    step2 = {
+      title: { en: "2. Early Warning (Min 11:30 - 13:30 Crossbow Spike)", es: "2. Alerta Temprana (Min 11:30 - 13:30 Spike de Ballestas)" },
+      detail: {
+        en: "Spike at Castle Age with 15-20 Crossbowmen + Bodkin Arrow. Do NOT fight in open fields without siege or armor.",
+        es: "Pico de poder al subir a Castillos con Ballesteros y +2 de ataque. NO pelees a campo abierto sin Mangonelas o armadura.",
+      },
+    };
+    step3 = {
+      title: { en: "3. Win Condition (Knights + Mangonel Pinch)", es: "3. Condición de Victoria (Jinetes + Mangonela)" },
+      detail: {
+        en: "Force them backward with 1-2 Mangonels while Knights flank from the sides to wipe their ranged mass.",
+        es: "Hazles retroceder con 1-2 Mangonelas mientras tus jinetes flanquean por los lados para limpiar su masa de arqueros.",
+      },
+    };
+  } else if (playstyle === "infantry") {
+    profileHeadline = {
+      en: "Infantry Flood & Forward Pressure",
+      es: "Presión Temprana de Infantería",
+    };
+    profileDetail = {
+      en: `Relies on Men-at-Arms or Eagle Warrior tempo (${topCiv}). Vulnerable to defensive archers, walls, and defensive towers.`,
+      es: `Utiliza Hombres de Armas o Guerreros Águila (${topCiv}). Vulnerable a arqueros bien protegidos, muros y torres defensivas.`,
+    };
+    step1 = {
+      title: { en: "1. Opening (Archers behind small walls)", es: "1. Apertura (Arqueros tras muros pequeños)" },
+      detail: {
+        en: "Wall your resource nodes tightly and rush 1 Archery Range for archers with Fletching.",
+        es: "Amuralla tus recursos de cerca y levanta Galería de Tiro rápida para sacar arqueros con flecha emplumada.",
+      },
+    };
+    step2 = {
+      title: { en: "2. Early Warning (Min 09:30 - 10:30 M&A Rush)", es: "2. Alerta Temprana (Min 09:30 - 10:30 M&A Rush)" },
+      detail: {
+        en: "Look for 3 Men-at-Arms hitting your palisades before Feudal completes. Garrison villagers if trapped.",
+        es: "Vigila la llegada de 3 Hombres de Armas a tus empalizadas antes del minuto 10. Guarece aldeanos si te sorprenden.",
+      },
+    };
+    step3 = {
+      title: { en: "3. Win Condition (Castle Age Crossbows + Knights)", es: "3. Condición de Victoria (Ballestas + Jinetes)" },
+      detail: {
+        en: "Mass Crossbows to shred infantry armor, and add a stable for mobility to raid their woodlines.",
+        es: "Acumula Ballesteros para destrozar su infantería y añade un establo para raidear sus líneas de madera.",
+      },
+    };
+  }
+
+  const matchupAdvantage = {
+    headline: {
+      en: `Countering ${topCiv} on ${topMap}`,
+      es: `Cómo contrarrestar a ${topCiv} en ${topMap}`,
+    },
+    detail: {
+      en: `Their most played civ (${topCiv}) has strong spikes, but becomes predictable. On ${topMap}, controlling the center gold and dictating the pace in early Castle Age wins the match.`,
+      es: `Su civilización favorita (${topCiv}) tiene picos fuertes pero predecibles. En ${topMap}, controlar los oros centrales y marcar el ritmo en Castillos temprano asegura la victoria.`,
+    },
+  };
+
+  return {
+    playerProfile: {
+      headline: profileHeadline,
+      detail: profileDetail,
+      tag: playstyle || "flex",
+    },
+    matchupAdvantage,
+    threeStepPlan: {
+      step1Opening: step1,
+      step2Warning: step2,
+      step3WinCondition: step3,
+    },
   };
 }

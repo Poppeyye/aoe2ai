@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Loader2, Send, Sparkles, LogIn, ArrowDown, Square, Brain } from "lucide-react";
+import { Loader2, Send, Sparkles, LogIn, ArrowDown, Square, Brain, Copy, Check } from "lucide-react";
 import Link from "next/link";
 import { cn, generateId } from "@/lib/utils";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
@@ -59,11 +59,12 @@ export default function AssistantPanel({
   const [activities, setActivities] = useState<ToolActivity[]>([]);
   const [initialSent, setInitialSent] = useState(false);
   const [statusText, setStatusText] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const contextRef = useRef(context);
   contextRef.current = context;
 
-  const { containerRef, scrollToBottom, userScrolledUpRef } = useSmartScroll([messages, activities, loading, statusText]);
+  const { containerRef, scrollToBottom, isScrolledUp } = useSmartScroll([messages, activities, loading, statusText]);
 
   useEffect(() => {
     setMessages([]);
@@ -72,6 +73,12 @@ export default function AssistantPanel({
     setLoading(false);
     setStatusText(null);
   }, [context]);
+
+  const copyMessage = useCallback((id: string, text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  }, []);
 
   const doSend = useCallback(async (content: string, opts?: { hidden?: boolean }) => {
     if (!content || loading) return;
@@ -233,14 +240,13 @@ export default function AssistantPanel({
   const hasInitialPrompt = Boolean(initialPrompt);
   const showInitialButton = hasInitialPrompt && !initialSent && messages.length === 0;
   const visibleMessages = messages.filter((m) => !m.hidden);
-  const showScrollDown = userScrolledUpRef.current && loading;
 
   const chatAreaClass = fullscreen
-    ? "flex-1 overflow-y-auto space-y-4 min-h-0"
-    : "space-y-3 max-h-[520px] overflow-y-auto";
+    ? "flex-1 overflow-y-auto space-y-4 min-h-0 pr-1 relative scroll-smooth"
+    : "space-y-3 max-h-[520px] overflow-y-auto pr-1 relative scroll-smooth";
 
   return (
-    <div className={fullscreen ? "flex flex-col h-full" : "card"}>
+    <div className={fullscreen ? "flex flex-col h-full relative" : "card relative"}>
       {!fullscreen && (
         <h3 className="section-title flex items-center gap-2">
           <Sparkles className="w-5 h-5 text-purple-400" />
@@ -253,7 +259,7 @@ export default function AssistantPanel({
         {showInitialButton && (
           <div className="text-center py-4">
             {initialPromptDescription && (
-              <p className="text-sm text-gray-500 mb-4">{initialPromptDescription}</p>
+              <p className="text-sm text-gray-400 mb-4">{initialPromptDescription}</p>
             )}
             <button onClick={triggerInitialAnalysis} className="btn-primary inline-flex items-center gap-2">
               <Sparkles className="w-4 h-4" />
@@ -319,15 +325,34 @@ export default function AssistantPanel({
             <div
               key={message.id}
               className={cn(
-                "rounded-xl p-4 text-sm leading-relaxed",
-                fullscreen ? "max-w-[80%]" : "max-w-[90%]",
+                "rounded-xl p-4 text-sm leading-relaxed group relative",
+                fullscreen ? "max-w-[85%]" : "max-w-[92%]",
                 message.role === "user"
-                  ? "ml-auto bg-aoe-accent/20 text-white"
-                  : cn("mr-auto", fullscreen ? "card" : "bg-aoe-dark border border-aoe-border text-gray-200")
+                  ? "ml-auto bg-aoe-accent/20 text-white border border-aoe-accent/30"
+                  : cn("mr-auto", fullscreen ? "card border border-aoe-border/80" : "bg-aoe-dark border border-aoe-border text-gray-200")
               )}
             >
               {message.role === "assistant" ? (
-                <MarkdownMessage content={message.content} />
+                <>
+                  <div className="flex items-center justify-between gap-2 pb-2 mb-2 border-b border-aoe-border/30">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-aoe-accent flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      AoE2.ai Coach
+                    </span>
+                    <button
+                      onClick={() => copyMessage(message.id, message.content)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white p-1 rounded"
+                      title={locale === "es" ? "Copiar mensaje" : "Copy message"}
+                    >
+                      {copiedId === message.id ? (
+                        <Check className="w-3.5 h-3.5 text-green-400" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </div>
+                  <MarkdownMessage content={message.content} />
+                </>
               ) : (
                 <span className="whitespace-pre-wrap">{message.content}</span>
               )}
@@ -342,15 +367,15 @@ export default function AssistantPanel({
           )}
         </div>
 
-        {/* Scroll-to-bottom button */}
-        {showScrollDown && (
-          <div className="flex justify-center -mt-2 mb-1">
+        {/* Floating Scroll-to-bottom button when user scrolled up to read */}
+        {isScrolledUp && (
+          <div className="flex justify-center -mt-2 mb-1 z-30">
             <button
               onClick={scrollToBottom}
-              className="flex items-center gap-1.5 rounded-full bg-aoe-card border border-aoe-border/60 px-3 py-1.5 text-xs text-gray-400 hover:text-white transition-colors shadow-lg"
+              className="flex items-center gap-1.5 rounded-full bg-aoe-accent text-aoe-dark font-semibold px-4 py-1.5 text-xs shadow-2xl hover:bg-yellow-400 transition-all animate-bounce"
             >
-              <ArrowDown className="w-3 h-3" />
-              {locale === "es" ? "Ir al final" : "Scroll to bottom"}
+              <ArrowDown className="w-3.5 h-3.5" />
+              {locale === "es" ? "Nuevas respuestas / Ir al final" : "New messages / Scroll to bottom"}
             </button>
           </div>
         )}

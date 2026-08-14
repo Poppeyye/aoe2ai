@@ -25,6 +25,8 @@ import {
   type ScoutLeaderboard,
 } from "@/lib/aoe2/lobby";
 import { PlaystyleBadge, RatingSparkline, formatRelativeTime } from "@/components/scout/OpponentExtras";
+import TacticalBriefingCard from "@/components/scout/TacticalBriefingCard";
+import type { TacticalBriefing } from "@/lib/scout/opponent";
 
 interface LinkedProfile {
   linked: boolean;
@@ -1390,6 +1392,16 @@ function LiveMatchPanel({
 
                     {hasProfile && (
                       <>
+                    {opp.data.tacticalBriefing && (
+                      <TacticalBriefingCard
+                        briefing={opp.data.tacticalBriefing as TacticalBriefing}
+                        locale={locale}
+                        opponentName={displayName}
+                        opponentCiv={currentCivName || (civs && civs[0]?.civName)}
+                        currentMap={currentMapName}
+                      />
+                    )}
+
                     {(mapStatWr !== null || civStat) && (
                       <div className="flex items-center gap-2 flex-wrap">
                         {mapStatWr !== null && mapStat && (

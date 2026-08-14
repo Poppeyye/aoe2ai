@@ -1,51 +1,72 @@
 "use client";
 
-import { useRef, useCallback, useEffect } from "react";
+import { useRef, useCallback, useEffect, useState } from "react";
 
-const NEAR_BOTTOM_THRESHOLD = 120;
+const AUTO_SCROLL_THRESHOLD = 80;
 
 export function useSmartScroll(deps: unknown[]) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const autoScrollEnabledRef = useRef(true);
   const userScrolledUpRef = useRef(false);
-  const lastScrollTopRef = useRef(0);
+  const [isScrolledUp, setIsScrolledUp] = useState(false);
 
-  const handleScroll = useCallback(() => {
+  const checkScrollPosition = useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
 
     const { scrollTop, scrollHeight, clientHeight } = el;
-    const isNearBottom = scrollHeight - scrollTop - clientHeight < NEAR_BOTTOM_THRESHOLD;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    const isAtBottom = distanceFromBottom <= AUTO_SCROLL_THRESHOLD;
 
-    if (scrollTop < lastScrollTopRef.current && !isNearBottom) {
-      userScrolledUpRef.current = true;
-    } else if (isNearBottom) {
+    if (isAtBottom) {
+      autoScrollEnabledRef.current = true;
       userScrolledUpRef.current = false;
+      setIsScrolledUp(false);
+    } else {
+      autoScrollEnabledRef.current = false;
+      userScrolledUpRef.current = true;
+      setIsScrolledUp(true);
     }
-
-    lastScrollTopRef.current = scrollTop;
   }, []);
 
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
-    el.addEventListener("scroll", handleScroll, { passive: true });
-    return () => el.removeEventListener("scroll", handleScroll);
-  }, [handleScroll]);
+    const onScroll = () => {
+      checkScrollPosition();
+    };
+
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [checkScrollPosition]);
 
   useEffect(() => {
-    if (userScrolledUpRef.current) return;
+    if (!autoScrollEnabledRef.current) return;
     const el = containerRef.current;
     if (!el) return;
-    el.scrollTop = el.scrollHeight;
+
+    // Use requestAnimationFrame to prevent layout thrashing
+    requestAnimationFrame(() => {
+      if (el && autoScrollEnabledRef.current) {
+        el.scrollTop = el.scrollHeight;
+      }
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 
   const scrollToBottom = useCallback(() => {
+    autoScrollEnabledRef.current = true;
     userScrolledUpRef.current = false;
+    setIsScrolledUp(false);
     const el = containerRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (el) {
+      el.scrollTo({
+        top: el.scrollHeight,
+        behavior: "smooth",
+      });
+    }
   }, []);
 
-  return { containerRef, scrollToBottom, userScrolledUpRef };
+  return { containerRef, scrollToBottom, userScrolledUpRef, isScrolledUp };
 }

@@ -4,7 +4,9 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import {
   Upload, FileText, Loader2, AlertCircle, Swords, Clock,
   MapPin, MessageSquare, BarChart3, Shield, Flame, Crown,
+  Target, TrendingDown, Lightbulb, Zap, Check, Copy, Sparkles,
 } from "lucide-react";
+import type { RootCauseAnalysis } from "@/lib/ai/replay-analyzer";
 import { cn, formatTime } from "@/lib/utils";
 import { useDictionary, useLocale } from "@/i18n/I18nProvider";
 import AssistantPanel from "@/components/ai/AssistantPanel";
@@ -35,6 +37,7 @@ interface AnalysisResult {
   chronicle: string;
   aiContext?: Record<string, unknown>;
   aiEnabled?: boolean;
+  rootCause?: RootCauseAnalysis;
   version: string;
   map: string;
   mapSize: { x: number; y: number };
@@ -151,6 +154,15 @@ export default function ReplayPage() {
               ))}
             </div>
           </div>
+
+          {/* Root Cause Tactical Post-Mortem */}
+          {result.rootCause && (
+            <RootCauseSection
+              rootCause={result.rootCause}
+              locale={locale === "es" ? "es" : "en"}
+              mapName={result.map}
+            />
+          )}
 
           {result.playerStats && Object.keys(result.playerStats).length > 0 && (
             <div className="card">
@@ -571,5 +583,150 @@ function MapControlChart({ data, duration, players, mapSize }: {
   }, [data, duration, players, mapSize]);
   return (
     <canvas ref={canvasRef} className="rounded-lg border border-aoe-border w-full" style={{ height: HEIGHT }} />
+  );
+}
+
+function RootCauseSection({
+  rootCause,
+  locale,
+  mapName,
+}: {
+  rootCause: RootCauseAnalysis;
+  locale: "en" | "es";
+  mapName: string;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const copySummary = () => {
+    const text = locale === "es"
+      ? `🎯 **Post-Mortem Táctico de AoE2.ai (${mapName})**\n\n` +
+        `💥 **Momento Decisivo (${rootCause.turningPoint.formattedTime})**: ${rootCause.turningPoint.headline.es}\n${rootCause.turningPoint.detail.es}\n\n` +
+        `📉 **Fuga Económica**: ${rootCause.economicLeak.headline.es}\n${rootCause.economicLeak.detail.es}\n\n` +
+        `🛡️ **Transición Faltante**: ${rootCause.missingTransition.headline.es}\nCounters recomendados: ${rootCause.missingTransition.recommendedCounters.join(", ")}\n\n` +
+        `💡 **Consejo**: ${rootCause.actionableTip.detail.es}\n\nAnalizado con https://aoe2.ai`
+      : `🎯 **AoE2.ai Tactical Post-Mortem (${mapName})**\n\n` +
+        `💥 **Turning Point (${rootCause.turningPoint.formattedTime})**: ${rootCause.turningPoint.headline.en}\n${rootCause.turningPoint.detail.en}\n\n` +
+        `📉 **Economic Leak**: ${rootCause.economicLeak.headline.en}\n${rootCause.economicLeak.detail.en}\n\n` +
+        `🛡️ **Missing Counter**: ${rootCause.missingTransition.headline.en}\nRecommended counters: ${rootCause.missingTransition.recommendedCounters.join(", ")}\n\n` +
+        `💡 **Key Advice**: ${rootCause.actionableTip.detail.en}\n\nAnalyzed at https://aoe2.ai`;
+
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
+
+  return (
+    <div className="card border-aoe-accent/40 bg-gradient-to-br from-aoe-accent/5 via-transparent to-aoe-dark/80 relative overflow-hidden">
+      <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-aoe-accent/20 flex items-center justify-center">
+            <Target className="w-5 h-5 text-aoe-accent" />
+          </div>
+          <div>
+            <h2 className="text-lg font-medieval font-bold gold-gradient">
+              {locale === "es" ? "Post-Mortem Táctico (Causa Raíz)" : "Tactical Post-Mortem (Root Cause Engine)"}
+            </h2>
+            <p className="text-xs text-gray-400">
+              {locale === "es" ? "Por qué se decidió la partida y qué corregir" : "Why the match was decided and what to fix"}
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={copySummary}
+          className="btn-secondary text-xs !px-3 !py-1.5 flex items-center gap-1.5"
+        >
+          {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+          {copied
+            ? (locale === "es" ? "¡Copiado al portapapeles!" : "Copied to clipboard!")
+            : (locale === "es" ? "Copiar resumen" : "Copy summary")}
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        {/* 1. Turning Point */}
+        <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-4 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-red-400 flex items-center gap-1.5">
+                <Flame className="w-4 h-4 text-red-400" />
+                {locale === "es" ? "1. Momento Decisivo" : "1. Turning Point"}
+              </span>
+              <span className="text-xs font-mono font-bold bg-red-500/20 text-red-300 px-2 py-0.5 rounded">
+                ⏱️ {rootCause.turningPoint.formattedTime}
+              </span>
+            </div>
+            <h4 className="text-sm font-semibold text-white mb-1.5">
+              {locale === "es" ? rootCause.turningPoint.headline.es : rootCause.turningPoint.headline.en}
+            </h4>
+            <p className="text-xs text-gray-300 leading-relaxed">
+              {locale === "es" ? rootCause.turningPoint.detail.es : rootCause.turningPoint.detail.en}
+            </p>
+          </div>
+        </div>
+
+        {/* 2. Economic Leak */}
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                <TrendingDown className="w-4 h-4 text-amber-400" />
+                {locale === "es" ? "2. Fuga Económica" : "2. Economic Leak"}
+              </span>
+              {rootCause.economicLeak.villagerDeficit > 0 && (
+                <span className="text-xs font-mono font-bold bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded">
+                  -{rootCause.economicLeak.villagerDeficit} vills
+                </span>
+              )}
+            </div>
+            <h4 className="text-sm font-semibold text-white mb-1.5">
+              {locale === "es" ? rootCause.economicLeak.headline.es : rootCause.economicLeak.headline.en}
+            </h4>
+            <p className="text-xs text-gray-300 leading-relaxed">
+              {locale === "es" ? rootCause.economicLeak.detail.es : rootCause.economicLeak.detail.en}
+            </p>
+          </div>
+        </div>
+
+        {/* 3. Missing Counter Transition */}
+        <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-4 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1.5">
+                <Shield className="w-4 h-4 text-blue-400" />
+                {locale === "es" ? "3. Transición Faltante" : "3. Missing Counter"}
+              </span>
+            </div>
+            <h4 className="text-sm font-semibold text-white mb-1.5">
+              {locale === "es" ? rootCause.missingTransition.headline.es : rootCause.missingTransition.headline.en}
+            </h4>
+            <p className="text-xs text-gray-300 leading-relaxed mb-3">
+              {locale === "es" ? rootCause.missingTransition.detail.es : rootCause.missingTransition.detail.en}
+            </p>
+          </div>
+          {rootCause.missingTransition.recommendedCounters.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 pt-2 border-t border-blue-500/20">
+              {rootCause.missingTransition.recommendedCounters.map((cnt) => (
+                <span key={cnt} className="text-[11px] px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 font-medium">
+                  🛡️ {cnt}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Actionable Tip */}
+      <div className="rounded-xl border border-aoe-accent/30 bg-aoe-accent/10 p-3.5 flex items-start gap-3">
+        <Lightbulb className="w-5 h-5 text-aoe-accent shrink-0 mt-0.5" />
+        <div>
+          <span className="text-xs font-bold text-aoe-accent uppercase tracking-wider block mb-0.5">
+            {locale === "es" ? rootCause.actionableTip.headline.es : rootCause.actionableTip.headline.en}
+          </span>
+          <p className="text-xs text-gray-200 leading-relaxed">
+            {locale === "es" ? rootCause.actionableTip.detail.es : rootCause.actionableTip.detail.en}
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }

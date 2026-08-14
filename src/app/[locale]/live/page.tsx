@@ -11,19 +11,9 @@ import { useDictionary, useLocale } from "@/i18n/I18nProvider";
 import FavoriteButton from "@/components/ui/FavoriteButton";
 import KofiHint from "@/components/ui/KofiHint";
 import AssistantPanel from "@/components/ai/AssistantPanel";
-
-interface ScoutProfile {
-  name: string;
-  profileId: number;
-  country: string;
-  rating: number;
-  rank: number;
-  wins: number;
-  losses: number;
-  streak: number;
-  highestRating: number;
-  clan?: string;
-}
+import TacticalBriefingCard from "@/components/scout/TacticalBriefingCard";
+import ShareablePlayerCard from "@/components/scout/ShareablePlayerCard";
+import type { TacticalBriefing, PlaystyleTag, ScoutProfile } from "@/lib/scout/opponent";
 
 interface CivStat {
   civName: string;
@@ -64,6 +54,8 @@ interface ScoutData {
   aiEnabled?: boolean;
   civRecommendations: CivRecommendation[];
   matchCount: number;
+  playstyle?: string | null;
+  tacticalBriefing?: TacticalBriefing;
 }
 
 interface PlayerSuggestion {
@@ -336,6 +328,15 @@ function LivePageInner() {
       {!scoutLoading && scoutData && (
         <div className="space-y-6 animate-in fade-in duration-500">
           <ProfileHeader profile={scoutData.profile} d={d} />
+          {scoutData.tacticalBriefing && (
+            <TacticalBriefingCard
+              briefing={scoutData.tacticalBriefing}
+              locale={locale === "es" ? "es" : "en"}
+              opponentName={scoutData.profile.name}
+              opponentCiv={scoutData.civStats[0]?.civName}
+              currentMap={scoutData.mapStats[0]?.map}
+            />
+          )}
           <RecentFormRow form={scoutData.recentForm} d={d} avgDuration={scoutData.avgGameDuration} />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -344,6 +345,12 @@ function LivePageInner() {
           </div>
 
           <CivRecommendations recommendations={scoutData.civRecommendations} d={d} />
+          <ShareablePlayerCard
+            profile={scoutData.profile}
+            civStats={scoutData.civStats}
+            playstyle={scoutData.playstyle as PlaystyleTag | null}
+            locale={locale === "es" ? "es" : "en"}
+          />
           <AssistantPanel
             surface="live"
             locale={locale === "es" ? "es" : "en"}
