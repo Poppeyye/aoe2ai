@@ -58,6 +58,10 @@ export default function Footer() {
 
           <div className="text-center md:text-right space-y-2">
             <div className="flex flex-wrap justify-center md:justify-end gap-3 text-xs text-gray-400 mb-2">
+              <Link href={`/${locale}/counters`} className="hover:text-aoe-accent transition-colors">
+                {locale === "es" ? "Calculadora Counters" : "Counters"}
+              </Link>
+              <span>&bull;</span>
               <Link href={`/${locale}/matchups`} className="hover:text-aoe-accent transition-colors">
                 {locale === "es" ? "Enfrentamientos" : "Matchups"}
               </Link>

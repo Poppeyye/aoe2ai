@@ -12,6 +12,8 @@
     "players": "Players",
     "live": "Scout",
     "learn": "Build Orders",
+    "matchups": "Matchups",
+    "counters": "Counter Calculator",
     "profile": "My Profile",
     "login": "Login"
   },

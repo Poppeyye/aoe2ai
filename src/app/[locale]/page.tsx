@@ -187,7 +187,7 @@ export default async function HomePage({
         <p className="text-sm text-gray-500 mb-6 ml-8">
           {d.cat_knowledge_desc}
         </p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <ToolCard
             href={`/${locale}/agent`}
             icon={Swords}
@@ -195,6 +195,21 @@ export default async function HomePage({
             desc={d.tool_agent_desc}
             tag="AI"
             accent="amber"
+          />
+          <ToolCard
+            href={`/${locale}/counters`}
+            icon={Shield}
+            title={locale === "es" ? "Calculadora de Counters" : "Counter Calculator"}
+            desc={locale === "es" ? "Calcula el contraataque óptimo y el balance de aldeanos en comida, madera y oro." : "Calculate optimal counter army & exact villager balance for food, wood, and gold."}
+            tag="New"
+            accent="green"
+          />
+          <ToolCard
+            href={`/${locale}/matchups`}
+            icon={Swords}
+            title={locale === "es" ? "Enfrentamientos de Civs" : "Civ Matchups"}
+            desc={locale === "es" ? "Guía estratégica cara a cara, picos de poder y tiempos entre civilizaciones." : "Head-to-head strategy guide, power spikes, and timings between civilizations."}
+            accent="blue"
           />
           <ToolCard
             href={`/${locale}/techtree`}
