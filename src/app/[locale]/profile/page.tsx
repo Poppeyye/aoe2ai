@@ -26,6 +26,7 @@ import {
 } from "@/lib/aoe2/lobby";
 import { PlaystyleBadge, RatingSparkline, formatRelativeTime } from "@/components/scout/OpponentExtras";
 import TacticalBriefingCard from "@/components/scout/TacticalBriefingCard";
+import LiveMatchCopilot from "@/components/scout/LiveMatchCopilot";
 import type { TacticalBriefing } from "@/lib/scout/opponent";
 
 interface LinkedProfile {
@@ -703,6 +704,17 @@ export default function ProfilePage() {
             onAnalyze={runAiAnalysis}
             locale={locale as "en" | "es"}
           />
+
+          {!liveMatch && (
+            <LiveMatchCopilot
+              locale={locale as "en" | "es"}
+              initialMyCiv={civStats[0]?.civName || "Franks"}
+              initialOpponentCiv="Mongols"
+              initialMap={mapStats[0]?.map || "Arabia"}
+              initialOpponentElo={rm1v1?.rating || 1250}
+              initialOpponentPlaystyle="cavalry"
+            />
+          )}
 
           {/* Recent Form */}
           {recentForm.length > 0 && (
@@ -1713,6 +1725,26 @@ function LiveMatchPanel({
               )}
             </div>
           )}
+
+          {/* Live In-Game Voice Copilot */}
+          <LiveMatchCopilot
+            locale={locale}
+            initialMyCiv={mySlot ? getCivName(mySlot.civilization) : "Franks"}
+            initialOpponentCiv={
+              !liveMatch.hide_civilizations && allOpponentSlots[0]
+                ? getCivName(allOpponentSlots[0].civilization)
+                : ((opponentScouts[0]?.data?.civStats as any)?.[0]?.civName as string) || "Mongols"
+            }
+            initialOpponentName={allOpponentSlots[0]?.name || t.opponent}
+            initialMap={liveMatch.map_name || "Arabia"}
+            initialOpponentElo={
+              getScoutRating(slotProfileId(allOpponentSlots[0]), opponentScouts, scoutLb) ?? 1200
+            }
+            initialOpponentPlaystyle={
+              (opponentScouts[0]?.data?.playstyle as string) || "Standard"
+            }
+            scoutContext={opponentScouts[0]?.data}
+          />
         </div>
       )}
     </div>

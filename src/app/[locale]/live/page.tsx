@@ -12,6 +12,7 @@ import FavoriteButton from "@/components/ui/FavoriteButton";
 import KofiHint from "@/components/ui/KofiHint";
 import AssistantPanel from "@/components/ai/AssistantPanel";
 import TacticalBriefingCard from "@/components/scout/TacticalBriefingCard";
+import LiveMatchCopilot from "@/components/scout/LiveMatchCopilot";
 import ShareablePlayerCard from "@/components/scout/ShareablePlayerCard";
 import type { TacticalBriefing, PlaystyleTag, ScoutProfile } from "@/lib/scout/opponent";
 
@@ -337,6 +338,15 @@ function LivePageInner() {
               currentMap={scoutData.mapStats[0]?.map}
             />
           )}
+          <LiveMatchCopilot
+            locale={locale === "es" ? "es" : "en"}
+            initialOpponentCiv={scoutData.civStats[0]?.civName || "Mongols"}
+            initialOpponentName={scoutData.profile.name}
+            initialMap={scoutData.mapStats[0]?.map || "Arabia"}
+            initialOpponentElo={scoutData.profile.rating}
+            initialOpponentPlaystyle={scoutData.playstyle || "Standard"}
+            scoutContext={scoutData as unknown as Record<string, unknown>}
+          />
           <RecentFormRow form={scoutData.recentForm} d={d} avgDuration={scoutData.avgGameDuration} />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -387,20 +397,31 @@ function LivePageInner() {
 
       {/* Empty state */}
       {!scoutLoading && !scoutData && (
-        <div className="card text-center py-16">
-          <div className="flex flex-col items-center gap-4">
-            <div className="w-20 h-20 rounded-full bg-aoe-accent/10 flex items-center justify-center">
-              <Target className="w-10 h-10 text-aoe-accent" />
-            </div>
-            <div>
-              <h2 className="text-xl font-semibold text-white mb-2">{d.select_opponent}</h2>
-              <p className="text-gray-500 max-w-md mx-auto">{d.subtitle}</p>
-            </div>
-            <div className="flex items-center gap-2 mt-2 text-gray-600 text-sm">
-              <Search className="w-4 h-4" />
-              <span>{d.search_placeholder}</span>
+        <div className="space-y-6">
+          <div className="card text-center py-12">
+            <div className="flex flex-col items-center gap-4">
+              <div className="w-16 h-16 rounded-full bg-aoe-accent/10 flex items-center justify-center">
+                <Target className="w-8 h-8 text-aoe-accent" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-white mb-2">{d.select_opponent}</h2>
+                <p className="text-gray-500 max-w-md mx-auto">{d.subtitle}</p>
+              </div>
+              <div className="flex items-center gap-2 mt-2 text-gray-600 text-sm">
+                <Search className="w-4 h-4" />
+                <span>{d.search_placeholder}</span>
+              </div>
             </div>
           </div>
+
+          <LiveMatchCopilot
+            locale={locale === "es" ? "es" : "en"}
+            initialMyCiv="Franks"
+            initialOpponentCiv="Mongols"
+            initialMap="Arabia"
+            initialOpponentElo={1250}
+            initialOpponentPlaystyle="cavalry"
+          />
         </div>
       )}
     </div>
