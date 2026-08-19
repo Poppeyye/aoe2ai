@@ -111,34 +111,39 @@ export default function HeroMatchupSimulator({ locale }: HeroMatchupSimulatorPro
         </div>
 
         {/* Civ Selectors Dual Panel */}
-        <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-3 sm:gap-4 items-center mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-3 sm:gap-4 items-stretch mb-6">
           {/* Civ 1 Selector */}
-          <div className="rounded-xl bg-slate-900/90 border border-aoe-accent/30 p-3.5 sm:p-4 transition-all focus-within:border-aoe-accent">
-            <div className="text-[10px] uppercase font-bold text-aoe-accent tracking-wider mb-1 flex items-center justify-between">
-              <span>{isEs ? "Tu Civilización" : "Your Civ"}</span>
-              <span className="text-gray-400 font-normal capitalize">({c1Info.archetype})</span>
+          <div className="rounded-xl bg-slate-900/90 border border-aoe-accent/30 p-3.5 sm:p-4 flex flex-col justify-between min-h-[118px] transition-all focus-within:border-aoe-accent">
+            <div>
+              <div className="text-[10px] uppercase font-bold text-aoe-accent tracking-wider mb-1.5 flex items-center justify-between">
+                <span>{isEs ? "Tu Civilización" : "Your Civ"}</span>
+                <span className="text-gray-400 font-normal capitalize">({c1Info.archetype})</span>
+              </div>
+              <select
+                value={civ1}
+                onChange={(e) => setCiv1(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700/80 rounded-lg px-3 py-2 text-base font-bold text-white focus:border-aoe-accent focus:outline-none cursor-pointer"
+              >
+                {FEATURED_CIV_KEYS.map((key) => (
+                  <option key={`c1-${key}`} value={key}>
+                    {CIV_DATA[key].name}
+                  </option>
+                ))}
+              </select>
             </div>
-            <select
-              value={civ1}
-              onChange={(e) => setCiv1(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700/80 rounded-lg px-3 py-2 text-base font-bold text-white focus:border-aoe-accent focus:outline-none cursor-pointer"
-            >
-              {FEATURED_CIV_KEYS.map((key) => (
-                <option key={`c1-${key}`} value={key}>
-                  {CIV_DATA[key].name}
-                </option>
-              ))}
-            </select>
-            <div className="text-xs text-gray-400 mt-2 truncate">
-              ⭐ {c1Info.uniqueUnits[0] || "Unique Unit"} &bull; {c1Info.powerSpike}
+            <div className="text-xs text-gray-400 mt-2.5 truncate flex items-center gap-1.5">
+              <span className="text-yellow-400 text-xs">⭐</span>
+              <span className="text-gray-300 font-medium">{c1Info.uniqueUnits[0] || "Unique Unit"}</span>
+              <span className="text-gray-600">&bull;</span>
+              <span className="text-gray-400 truncate">{c1Info.powerSpike}</span>
             </div>
           </div>
 
           {/* Swap Button */}
-          <div className="flex justify-center">
+          <div className="flex items-center justify-center py-2 sm:py-0">
             <button
               onClick={swapCivs}
-              className="w-10 h-10 rounded-full bg-aoe-card border border-aoe-border hover:border-aoe-accent text-gray-300 hover:text-white flex items-center justify-center transition-all hover:scale-110 shadow-lg"
+              className="w-10 h-10 rounded-full bg-aoe-card border border-aoe-border hover:border-aoe-accent text-gray-300 hover:text-white flex items-center justify-center transition-all hover:scale-110 shadow-lg shrink-0"
               title={isEs ? "Intercambiar civilizaciones" : "Swap civilizations"}
             >
               <ArrowLeftRight className="w-4 h-4 text-aoe-accent" />
@@ -146,24 +151,29 @@ export default function HeroMatchupSimulator({ locale }: HeroMatchupSimulatorPro
           </div>
 
           {/* Civ 2 Selector */}
-          <div className="rounded-xl bg-slate-900/90 border border-slate-700/80 p-3.5 sm:p-4 transition-all focus-within:border-amber-400">
-            <div className="text-[10px] uppercase font-bold text-amber-400 tracking-wider mb-1 flex items-center justify-between">
-              <span>{isEs ? "Civilización Rival" : "Opponent Civ"}</span>
-              <span className="text-gray-400 font-normal capitalize">({c2Info.archetype})</span>
+          <div className="rounded-xl bg-slate-900/90 border border-slate-700/80 p-3.5 sm:p-4 flex flex-col justify-between min-h-[118px] transition-all focus-within:border-amber-400">
+            <div>
+              <div className="text-[10px] uppercase font-bold text-amber-400 tracking-wider mb-1.5 flex items-center justify-between">
+                <span>{isEs ? "Civilización Rival" : "Opponent Civ"}</span>
+                <span className="text-gray-400 font-normal capitalize">({c2Info.archetype})</span>
+              </div>
+              <select
+                value={civ2}
+                onChange={(e) => setCiv2(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700/80 rounded-lg px-3 py-2 text-base font-bold text-white focus:border-amber-400 focus:outline-none cursor-pointer"
+              >
+                {FEATURED_CIV_KEYS.map((key) => (
+                  <option key={`c2-${key}`} value={key}>
+                    {CIV_DATA[key].name}
+                  </option>
+                ))}
+              </select>
             </div>
-            <select
-              value={civ2}
-              onChange={(e) => setCiv2(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700/80 rounded-lg px-3 py-2 text-base font-bold text-white focus:border-amber-400 focus:outline-none cursor-pointer"
-            >
-              {FEATURED_CIV_KEYS.map((key) => (
-                <option key={`c2-${key}`} value={key}>
-                  {CIV_DATA[key].name}
-                </option>
-              ))}
-            </select>
-            <div className="text-xs text-gray-400 mt-2 truncate">
-              ⭐ {c2Info.uniqueUnits[0] || "Unique Unit"} &bull; {c2Info.powerSpike}
+            <div className="text-xs text-gray-400 mt-2.5 truncate flex items-center gap-1.5">
+              <span className="text-yellow-400 text-xs">⭐</span>
+              <span className="text-gray-300 font-medium">{c2Info.uniqueUnits[0] || "Unique Unit"}</span>
+              <span className="text-gray-600">&bull;</span>
+              <span className="text-gray-400 truncate">{c2Info.powerSpike}</span>
             </div>
           </div>
         </div>
