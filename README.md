@@ -88,7 +88,7 @@ The app will be running at `http://localhost:3000`.
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `OPENAI_API_KEY` | Yes | OpenAI API key for AI features |
-| `OPENAI_MODEL` | No | Model to use (default: `gpt-5-mini`) |
+| `OPENAI_MODEL` | No | Model to use (default: `gpt-5.6-luna`) |
 | `RELIC_API_BASE` | Yes | Relic/World's Edge API base URL |
 | `NEXT_PUBLIC_APP_URL` | Yes | Public URL of the app |
 | `NEXT_PUBLIC_APP_NAME` | No | Display name (default: `AoE2.ai`) |

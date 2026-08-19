@@ -1,6 +1,12 @@
 import OpenAI from "openai";
 
-export const DEFAULT_AI_MODEL = process.env.OPENAI_MODEL || "gpt-5.6-luna";
+const configuredModel = process.env.OPENAI_MODEL?.trim();
+const LEGACY_MODELS = new Set(["gpt-5.4-mini", "gpt-5-mini", "gpt-4o-mini", "gpt-4o"]);
+
+export const DEFAULT_AI_MODEL =
+  configuredModel && !LEGACY_MODELS.has(configuredModel)
+    ? configuredModel
+    : "gpt-5.6-luna";
 
 let client: OpenAI | null = null;
 
