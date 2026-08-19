@@ -1,5 +1,5 @@
 import {
-  getCompanionMatches,
+  fetchCompanionMatches,
   getCompanionProfile,
   searchPlayerCompanion,
   type CompanionMatch,
@@ -94,10 +94,12 @@ export type PlaystyleTag =
   | "boom";
 
 export interface TacticalBriefing {
+  /** False when the opponent's match history could not be read, so the plan is generic. */
+  hasHistory: boolean;
   playerProfile: {
     headline: { en: string; es: string };
     detail: { en: string; es: string };
-    tag: string;
+    tag: string | null;
   };
   matchupAdvantage: {
     headline: { en: string; es: string };
@@ -132,6 +134,8 @@ export interface ScoutReport {
   ratingHistory: number[];
   headToHead: HeadToHead | null;
   tacticalBriefing: TacticalBriefing;
+  /** False when the Companion match history request failed (rate limit / outage). */
+  historyLoaded: boolean;
 }
 
 const CIV_COUNTERS: Record<string, CivRecommendation[]> = {
@@ -171,6 +175,22 @@ function titleCase(value: string): string {
   return value.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/**
+ * The match API returns a few civs in singular form ("Maya", "Inca") while the
+ * lobby schema and our own tables use the plural. Without this they never match
+ * a playstyle, a counter recommendation, or the civ picked in the live game.
+ */
+const CIV_NAME_ALIASES: Record<string, string> = {
+  Maya: "Mayans",
+  Inca: "Incas",
+  Indians: "Hindustanis",
+};
+
+function canonicalCivName(raw: string): string {
+  const name = titleCase(raw.trim());
+  return CIV_NAME_ALIASES[name] ?? name;
+}
+
 function cleanMapName(raw: string): string {
   const name = raw
     .replace(/^rm_/i, "")
@@ -200,7 +220,10 @@ export function computeCivStats(matches: CompanionMatch[], profileId: number): C
     const me = findMe(match, profileId);
     if (!me || me.won === null) continue;
 
-    const civName = titleCase(me.civName || me.civ || "Unknown");
+    const rawCiv = me.civName || me.civ;
+    if (!rawCiv) continue;
+
+    const civName = canonicalCivName(rawCiv);
     const entry = stats.get(civName) ?? { games: 0, wins: 0, losses: 0 };
     entry.games += 1;
     if (me.won) entry.wins += 1;
@@ -266,7 +289,7 @@ export function computeRecentMatches(matches: CompanionMatch[], profileId: numbe
     recent.push({
       map: match.mapName || cleanMapName(match.map || "unknown"),
       won: me.won,
-      civ: titleCase(me.civName || me.civ || "Unknown"),
+      civ: me.civName || me.civ ? canonicalCivName(me.civName || me.civ) : "—",
       ratingChange: me.ratingDiff ?? 0,
       date: match.finished
         ? Math.floor(new Date(match.finished).getTime() / 1000)
@@ -293,25 +316,63 @@ export function computeAvgGameDuration(matches: CompanionMatch[]): number {
   return count > 0 ? Math.round(total / count) : 0;
 }
 
-export function getCivRecommendations(civStats: CivStat[]): CivRecommendation[] {
-  if (civStats.length === 0) {
-    return [
-      { civ: "Byzantines", reason: "Versatile tech tree adapts well to unknown strategies." },
-      { civ: "Franks", reason: "Strong knight openings stay solid against most generic play." },
-      { civ: "Mongols", reason: "Mobility punishes greedy or predictable opponents." },
-    ];
-  }
+const PLAYSTYLE_COUNTERS: Partial<Record<PlaystyleTag, CivRecommendation[]>> = {
+  cavalry: [
+    { civ: "Byzantines", reason: "Cheap Camels and free Town Watch blunt cavalry raids all game." },
+    { civ: "Britons", reason: "Longbow range keeps knights out of reach behind a spear wall." },
+    { civ: "Gurjaras", reason: "Shrivamsha Riders and camels are made for cavalry-heavy play." },
+  ],
+  archers: [
+    { civ: "Vietnamese", reason: "Free Conscription and tanky Rattan Archers win ranged fights." },
+    { civ: "Italians", reason: "Genoese Crossbowmen and cheap upgrades punish an archer mass." },
+    { civ: "Mongols", reason: "Faster Mangonels wipe grouped archers before they can spread." },
+  ],
+  infantry: [
+    { civ: "Britons", reason: "Longbows shred infantry that has to walk into range." },
+    { civ: "Franks", reason: "Cheap Castles and strong Knights run over slow infantry pushes." },
+    { civ: "Chinese", reason: "Cost-efficient Chu Ko Nu melt massed melee units." },
+  ],
+  camels: [
+    { civ: "Britons", reason: "Range advantage avoids melee trades with camels entirely." },
+    { civ: "Mayans", reason: "Cheap, durable archers out-trade camels at range." },
+    { civ: "Celts", reason: "Fast siege plus infantry handles camel armies well." },
+  ],
+  siege: [
+    { civ: "Franks", reason: "Cheap Knights snipe siege before it sets up." },
+    { civ: "Magyars", reason: "Free attack upgrades and Magyar Huszar hunt siege for free." },
+    { civ: "Lithuanians", reason: "Relic-boosted cavalry dives siege lines through anything." },
+  ],
+  gunpowder: [
+    { civ: "Mongols", reason: "Siege and mobility outrange slow gunpowder compositions." },
+    { civ: "Britons", reason: "Longbows outrange Hand Cannoneers comfortably." },
+    { civ: "Franks", reason: "Knight pressure closes the gap before gunpowder comes online." },
+  ],
+  navy: [
+    { civ: "Vikings", reason: "Cheap, discounted warships win almost any water fight." },
+    { civ: "Portuguese", reason: "Feitorias and strong ships hold water into the late game." },
+    { civ: "Italians", reason: "Cheaper Docks and fishing keep the water economy ahead." },
+  ],
+  boom: [
+    { civ: "Mongols", reason: "Early raids punish a greedy economy before it pays off." },
+    { civ: "Huns", reason: "No houses means faster aggression that outpaces a boom." },
+    { civ: "Franks", reason: "Knight timings arrive before a booming player has defences." },
+  ],
+};
 
+const GENERIC_COUNTERS: CivRecommendation[] = [
+  { civ: "Byzantines", reason: "Versatile tech tree adapts well to an unknown opponent." },
+  { civ: "Franks", reason: "Strong knight openings stay solid against most generic play." },
+  { civ: "Mongols", reason: "Mobility punishes greedy or predictable opponents." },
+];
+
+export function getCivRecommendations(
+  civStats: CivStat[],
+  playstyle?: PlaystyleTag | null,
+): CivRecommendation[] {
   const topCiv = civStats[0]?.civName;
-  if (topCiv && CIV_COUNTERS[topCiv]) {
-    return CIV_COUNTERS[topCiv];
-  }
-
-  return [
-    { civ: "Byzantines", reason: "Flexible tech tree lets you react to many compositions." },
-    { civ: "Franks", reason: "Simple, strong cavalry timings are reliable on open maps." },
-    { civ: "Mongols", reason: "Mobility and tempo are good against ladder players with habits." },
-  ];
+  if (topCiv && CIV_COUNTERS[topCiv]) return CIV_COUNTERS[topCiv];
+  if (playstyle && PLAYSTYLE_COUNTERS[playstyle]) return PLAYSTYLE_COUNTERS[playstyle]!;
+  return GENERIC_COUNTERS;
 }
 
 const CIV_PLAYSTYLE: Record<string, PlaystyleTag> = {
@@ -357,19 +418,39 @@ const CIV_PLAYSTYLE: Record<string, PlaystyleTag> = {
   Aztecs: "infantry",
   Armenians: "navy",
   Georgians: "cavalry",
+  Burmese: "infantry",
+  Bulgarians: "cavalry",
+  Sicilians: "infantry",
+  // Three Kingdoms
+  Shu: "archers",
+  Wei: "cavalry",
+  Wu: "infantry",
+  Jurchens: "cavalry",
+  Khitans: "cavalry",
+  // The Last Chieftains
+  Mapuche: "cavalry",
+  Muisca: "archers",
+  Tupi: "archers",
 };
+
+/** A style has to cover this share of their games before we call them a specialist. */
+const PLAYSTYLE_DOMINANCE_THRESHOLD = 0.35;
 
 export function computePlaystyle(civStats: CivStat[]): PlaystyleTag | null {
   if (civStats.length === 0) return null;
 
+  // Weight every civ they played, not just their top few: a wide civ pool is
+  // exactly the case where an arbitrary cut-off produces a random-looking tag.
   const tally = new Map<PlaystyleTag, number>();
-  for (const c of civStats.slice(0, 8)) {
+  let classified = 0;
+  for (const c of civStats) {
     const tag = CIV_PLAYSTYLE[c.civName];
     if (!tag) continue;
     tally.set(tag, (tally.get(tag) ?? 0) + c.games);
+    classified += c.games;
   }
 
-  if (tally.size === 0) return null;
+  if (classified === 0) return null;
 
   let best: PlaystyleTag | null = null;
   let bestCount = 0;
@@ -379,6 +460,10 @@ export function computePlaystyle(civStats: CivStat[]): PlaystyleTag | null {
       bestCount = count;
     }
   });
+
+  // No dominant preference: they are a generalist, not a specialist in whatever
+  // happened to come out on top.
+  if (bestCount / classified < PLAYSTYLE_DOMINANCE_THRESHOLD) return "flex";
   return best;
 }
 
@@ -445,8 +530,8 @@ export function computeHeadToHead(
       recent.push({
         map: match.mapName || cleanMapName(match.map || "unknown"),
         won: mePlayer.won,
-        myCiv: titleCase(mePlayer.civName || mePlayer.civ || "Unknown"),
-        opponentCiv: titleCase(oppPlayer.civName || oppPlayer.civ || "Unknown"),
+        myCiv: mePlayer.civName || mePlayer.civ ? canonicalCivName(mePlayer.civName || mePlayer.civ) : "—",
+        opponentCiv: oppPlayer.civName || oppPlayer.civ ? canonicalCivName(oppPlayer.civName || oppPlayer.civ) : "—",
         date: dateSec,
         ratingChange: mePlayer.ratingDiff ?? 0,
       });
@@ -513,10 +598,11 @@ export async function buildScoutReport({
     throw new Error("Provide either profileId or name");
   }
 
-  const [companionProfile, matches] = await Promise.all([
+  const [companionProfile, matchesResult] = await Promise.all([
     getCompanionProfile(resolvedProfileId),
-    getCompanionMatches(resolvedProfileId, leaderboardType, matchPages),
+    fetchCompanionMatches(resolvedProfileId, leaderboardType, matchPages),
   ]);
+  const matches = matchesResult.matches;
 
   const rm1v1Lb = companionProfile.leaderboards?.find(
     (lb) => lb.abbreviation === "RM 1v1" || lb.leaderboardId === "rm_1v1",
@@ -559,8 +645,8 @@ export async function buildScoutReport({
   const recentForm = computeRecentForm(matches, resolvedProfileId, 20);
   const recentMatches = computeRecentMatches(matches, resolvedProfileId, 10);
   const avgGameDuration = computeAvgGameDuration(matches);
-  const civRecommendations = getCivRecommendations(civStats);
   const playstyle = computePlaystyle(civStats);
+  const civRecommendations = getCivRecommendations(civStats, playstyle);
   const ratingHistory = computeRatingHistory(matches, resolvedProfileId, 20);
   const headToHead = vsProfileId && vsProfileId !== resolvedProfileId
     ? computeHeadToHead(matches, resolvedProfileId, vsProfileId)
@@ -588,6 +674,7 @@ export async function buildScoutReport({
     ratingHistory,
     headToHead,
     tacticalBriefing,
+    historyLoaded: matchesResult.loaded,
   };
 }
 
@@ -600,17 +687,19 @@ export function computeTacticalBriefing(params: {
   playstyle: PlaystyleTag | null;
 }): TacticalBriefing {
   const { civStats, mapStats, recentForm, playstyle } = params;
-  const topCiv = civStats[0]?.civName || "Unknown";
-  const topCivWinRate = civStats[0]?.winRate || 50;
-  const topMap = mapStats[0]?.map || "Arabia";
+  const hasHistory = civStats.length > 0;
+  const topCiv = civStats[0]?.civName ?? "";
+  const topCivWinRate = civStats[0]?.winRate ?? 0;
+  const topMap = mapStats[0]?.map ?? "";
 
   let profileHeadline = {
     en: "Balanced Ladder Competitor",
     es: "Competidor Versátil de Ranked",
   };
+  const topCivGames = civStats[0]?.games ?? 0;
   let profileDetail = {
-    en: `Plays frequently on ${topMap} with ${topCiv} (${topCivWinRate}% WR). Shows steady macro-oriented play.`,
-    es: `Juega habitualmente en ${topMap} con ${topCiv} (${topCivWinRate}% WR). Su estilo se apoya en macro constante.`,
+    en: `Most played map is ${topMap}. Most played civ is ${topCiv} (${topCivGames} games, ${topCivWinRate}% WR). No single unit composition dominates their games, so expect standard macro play.`,
+    es: `Su mapa más jugado es ${topMap}. Su civilización más jugada es ${topCiv} (${topCivGames} partidas, ${topCivWinRate}% de victorias). Ninguna composición domina sus partidas, así que espera un juego de macro estándar.`,
   };
 
   let step1 = {
@@ -727,7 +816,7 @@ export function computeTacticalBriefing(params: {
     };
   }
 
-  const matchupAdvantage = {
+  let matchupAdvantage = {
     headline: {
       en: `Countering ${topCiv} on ${topMap}`,
       es: `Cómo contrarrestar a ${topCiv} en ${topMap}`,
@@ -738,11 +827,35 @@ export function computeTacticalBriefing(params: {
     },
   };
 
+  // With no match history we know nothing about this player: say so instead of
+  // filling the briefing with placeholder civs, maps and win rates.
+  if (!hasHistory) {
+    profileHeadline = {
+      en: "No Match History Available",
+      es: "Sin Historial de Partidas",
+    };
+    profileDetail = {
+      en: "We could not read this player's recent ranked games, so there is no read on their preferred civs, maps or playstyle. The plan below is a solid default opening, not a scouted counter.",
+      es: "No hemos podido leer sus partidas clasificatorias recientes, así que no tenemos lectura de sus civilizaciones, mapas ni estilo. El plan de abajo es una apertura sólida por defecto, no un contra específico.",
+    };
+    matchupAdvantage = {
+      headline: {
+        en: "Scout In-Game Instead",
+        es: "Explora Dentro de la Partida",
+      },
+      detail: {
+        en: "Send your scout early and read their build from their buildings: an early Barracks plus Stable means cavalry pressure, two Archery Ranges means an archer mass, and a quiet base with a fast Town Center means a boom.",
+        es: "Manda el explorador pronto y lee su build por sus edificios: Cuartel y Establo temprano significa presión de caballería, dos Galerías de Tiro significa masa de arqueros, y una base tranquila con Centro Urbano rápido significa boom.",
+      },
+    };
+  }
+
   return {
+    hasHistory,
     playerProfile: {
       headline: profileHeadline,
       detail: profileDetail,
-      tag: playstyle || "flex",
+      tag: hasHistory ? playstyle || "flex" : null,
     },
     matchupAdvantage,
     threeStepPlan: {

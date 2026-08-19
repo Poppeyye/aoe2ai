@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
 
       const [companionProfile, companionMatches] = await Promise.all([
         getCompanionProfile(pid).catch(() => null),
-        getCompanionMatches(pid, "rm_1v1", 5).catch(() => [] as CompanionMatch[]),
+        getCompanionMatches(pid, type, 5).catch(() => [] as CompanionMatch[]),
       ]);
 
       if (!companionProfile) {

@@ -334,8 +334,6 @@ function LivePageInner() {
               briefing={scoutData.tacticalBriefing}
               locale={locale === "es" ? "es" : "en"}
               opponentName={scoutData.profile.name}
-              opponentCiv={scoutData.civStats[0]?.civName}
-              currentMap={scoutData.mapStats[0]?.map}
             />
           )}
           <LiveMatchCopilot

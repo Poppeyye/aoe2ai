@@ -14,7 +14,7 @@ import ToolActivityPanel, { type ToolActivity } from "@/components/ai/ToolActivi
 import MarkdownMessage from "@/components/ai/MarkdownMessage";
 import { readAssistantStream, type ClientAssistantStreamEvent } from "@/components/ai/chat-stream";
 import KofiHint from "@/components/ui/KofiHint";
-import { getCivName, SERVER_REGIONS } from "@/lib/aoe2/civs";
+import { getKnownCivName, SERVER_REGIONS } from "@/lib/aoe2/civs";
 import {
   classifyMatch,
   formatLobbySettings,
@@ -238,6 +238,30 @@ async function fetchOpponentScout(
   } catch {
     return { slot, data: {} as Record<string, unknown> };
   }
+}
+
+/**
+ * The Companion API rate-limits aggressively, and a rate-limited scout comes back
+ * with no match history at all. Scout a couple of slots at a time instead of
+ * firing one request per lobby slot at once.
+ */
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  worker: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+
+  async function run() {
+    while (cursor < items.length) {
+      const index = cursor++;
+      results[index] = await worker(items[index]);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, run));
+  return results;
 }
 
 export default function ProfilePage() {
@@ -508,8 +532,8 @@ export default function ProfilePage() {
     const lb = inferScoutLeaderboard(liveMatch as unknown as Record<string, unknown>, isTeamGame);
     setScouting(true);
 
-    Promise.all(
-      opponents.map((slot) => fetchOpponentScout(slot, locale, lb, myId, abortController.signal)),
+    mapWithConcurrency(opponents, 2, (slot) =>
+      fetchOpponentScout(slot, locale, lb, myId, abortController.signal),
     )
       .then((results) => {
         if (abortController.signal.aborted) return;
@@ -527,7 +551,7 @@ export default function ProfilePage() {
 
     const myId = linkedProfile.profileId;
     const myCiv = Object.values(liveMatch.slots).find((s) => s.profileid === myId);
-    const myCivName = myCiv ? getCivName(myCiv.civilization) : "Unknown";
+    const myCivName = (myCiv && getKnownCivName(myCiv.civilization)) || "not revealed yet";
     const isTeamGame = opponentScouts.length > 1;
     const matchKind = classifyMatch(
       liveMatch as unknown as Record<string, unknown>,
@@ -537,7 +561,7 @@ export default function ProfilePage() {
     const matchKindLabel = getMatchKindLabel(matchKind, locale as "en" | "es");
 
     const opponentsDesc = opponentScouts.map((opp) => {
-      const oppCivName = !liveMatch.hide_civilizations ? getCivName(opp.slot.civilization) : "Unknown";
+      const oppCivName = (!liveMatch.hide_civilizations && getKnownCivName(opp.slot.civilization)) || "civ not revealed yet";
       const p = opp.data.profile as Record<string, unknown> | undefined;
       const civs = opp.data.civStats as CivStat[] | undefined;
       const topCivs = civs?.slice(0, 3).map((c) => `${c.civName} (${c.winRate}%)`).join(", ") || "N/A";
@@ -989,7 +1013,7 @@ function MatchPlayerLine({
   ratingLoading?: boolean;
   highlight?: "ally" | "enemy" | "self";
 }) {
-  const civName = slot && !hideCivs ? getCivName(slot.civilization) : null;
+  const civName = slot && !hideCivs ? getKnownCivName(slot.civilization) : null;
   const border =
     highlight === "self" ? "border-amber-500/40" :
     highlight === "ally" ? "border-green-500/30" :
@@ -1345,7 +1369,7 @@ function LiveMatchPanel({
                 const mapStat = currentMapName && maps?.find((m) => m.map.toLowerCase() === currentMapName.toLowerCase());
                 const mapStatWr = mapStat && mapStat.games > 0 ? Math.round((mapStat.wins / mapStat.games) * 100) : null;
 
-                const currentCivName = !liveMatch.hide_civilizations ? getCivName(opp.slot.civilization) : null;
+                const currentCivName = !liveMatch.hide_civilizations ? getKnownCivName(opp.slot.civilization) : null;
                 const civStat = currentCivName && civs?.find((c) => c.civName.toLowerCase() === currentCivName.toLowerCase());
 
                 return (
@@ -1409,7 +1433,7 @@ function LiveMatchPanel({
                         briefing={opp.data.tacticalBriefing as TacticalBriefing}
                         locale={locale}
                         opponentName={displayName}
-                        opponentCiv={currentCivName || (civs && civs[0]?.civName)}
+                        opponentCiv={currentCivName}
                         currentMap={currentMapName}
                       />
                     )}
@@ -1729,11 +1753,13 @@ function LiveMatchPanel({
           {/* Live In-Game Voice Copilot */}
           <LiveMatchCopilot
             locale={locale}
-            initialMyCiv={mySlot ? getCivName(mySlot.civilization) : "Franks"}
+            initialMyCiv={(mySlot && getKnownCivName(mySlot.civilization)) || "Franks"}
             initialOpponentCiv={
-              !liveMatch.hide_civilizations && allOpponentSlots[0]
-                ? getCivName(allOpponentSlots[0].civilization)
-                : ((opponentScouts[0]?.data?.civStats as any)?.[0]?.civName as string) || "Mongols"
+              (!liveMatch.hide_civilizations && allOpponentSlots[0]
+                ? getKnownCivName(allOpponentSlots[0].civilization)
+                : null) ||
+              ((opponentScouts[0]?.data?.civStats as any)?.[0]?.civName as string) ||
+              "Mongols"
             }
             initialOpponentName={allOpponentSlots[0]?.name || t.opponent}
             initialMap={liveMatch.map_name || "Arabia"}

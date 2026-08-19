@@ -88,6 +88,16 @@ export function getCivName(id: number): string {
   return CIV_NAMES[id] ?? `Unknown (${id})`;
 }
 
+/**
+ * Civ name only when it is actually known. Id 0 means the pick is still hidden,
+ * and an unmapped id means a civ newer than this table — in both cases the UI
+ * should show nothing rather than "Hidden" or "Unknown (78)".
+ */
+export function getKnownCivName(id: number): string | null {
+  if (!id) return null;
+  return CIV_NAMES[id] ?? null;
+}
+
 export const SERVER_REGIONS: Record<number, string> = {
   0: "Automatic",
   1: "US East",

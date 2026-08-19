@@ -162,17 +162,40 @@ const COMPANION_HEADERS = {
   "User-Agent": "aoe2ai/1.0 (community fan project)",
 };
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * The Companion API rate-limits bursts (a lobby scout fires one request per slot),
+ * so retry 429s and 5xx before giving up.
+ */
+async function companionFetch(url: string, revalidate: number): Promise<Response> {
+  let lastStatus = 0;
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(url, { headers: COMPANION_HEADERS, next: { revalidate } });
+      if (res.ok) return res;
+      lastStatus = res.status;
+      if (res.status !== 429 && res.status < 500) break;
+    } catch {
+      lastStatus = 0;
+    }
+    if (attempt < 2) await sleep(300 * (attempt + 1));
+  }
+
+  throw new Error(`Companion API error: ${lastStatus || "network"}`);
+}
+
 export async function searchPlayerCompanion(query: string): Promise<CompanionSearchResult> {
-  const url = `${COMPANION_BASE}/api/profiles?search=${encodeURIComponent(query)}`;
-  const res = await fetch(url, { headers: COMPANION_HEADERS, next: { revalidate: 60 } });
-  if (!res.ok) throw new Error(`Companion API error: ${res.status}`);
+  const res = await companionFetch(
+    `${COMPANION_BASE}/api/profiles?search=${encodeURIComponent(query)}`,
+    60,
+  );
   return res.json();
 }
 
 export async function getCompanionProfile(profileId: number): Promise<CompanionFullProfile> {
-  const url = `${COMPANION_BASE}/api/profiles/${profileId}`;
-  const res = await fetch(url, { headers: COMPANION_HEADERS, next: { revalidate: 60 } });
-  if (!res.ok) throw new Error(`Companion API error: ${res.status}`);
+  const res = await companionFetch(`${COMPANION_BASE}/api/profiles/${profileId}`, 60);
   return res.json();
 }
 
@@ -205,24 +228,64 @@ export interface CompanionMatchesResponse {
   matches: CompanionMatch[];
 }
 
+export interface CompanionMatchesResult {
+  matches: CompanionMatch[];
+  /** False when the history request itself failed (rate limit, network, 5xx). */
+  loaded: boolean;
+}
+
+async function fetchMatchPage(
+  profileId: number,
+  leaderboardId: string,
+  page: number,
+): Promise<CompanionMatchesResponse | null> {
+  try {
+    // The filter param is `leaderboard_ids` (plural). The singular form is
+    // silently ignored and returns every mode, unranked lobbies included.
+    const res = await companionFetch(
+      `${COMPANION_BASE}/api/matches?profile_ids=${profileId}&leaderboard_ids=${encodeURIComponent(leaderboardId)}&count=20&page=${page}`,
+      120,
+    );
+    return (await res.json()) as CompanionMatchesResponse;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchCompanionMatches(
+  profileId: number,
+  leaderboardId = "rm_1v1",
+  pages = 5,
+): Promise<CompanionMatchesResult> {
+  const results = await Promise.all(
+    Array.from({ length: pages }, (_, i) => fetchMatchPage(profileId, leaderboardId, i + 1)),
+  );
+
+  const all: CompanionMatch[] = [];
+  const seen = new Set<number>();
+  for (const r of results) {
+    for (const match of r?.matches ?? []) {
+      // Guard against the server-side filter regressing again, and against the
+      // same match showing up on two pages while new games shift the paging.
+      if (match.leaderboardId !== leaderboardId) continue;
+      if (seen.has(match.matchId)) continue;
+      seen.add(match.matchId);
+      all.push(match);
+    }
+  }
+
+  all.sort((a, b) => new Date(b.started).getTime() - new Date(a.started).getTime());
+
+  // The first page decides whether we actually know the player's history:
+  // an empty page 1 means "no games", a failed page 1 means "we don't know".
+  return { matches: all, loaded: results[0] !== null };
+}
+
 export async function getCompanionMatches(
   profileId: number,
   leaderboardId = "rm_1v1",
   pages = 5,
 ): Promise<CompanionMatch[]> {
-  const fetches = Array.from({ length: pages }, (_, i) =>
-    fetch(
-      `${COMPANION_BASE}/api/matches?profile_ids=${profileId}&leaderboard_id=${leaderboardId}&count=20&page=${i + 1}`,
-      { headers: COMPANION_HEADERS, next: { revalidate: 120 } },
-    )
-      .then((r) => (r.ok ? r.json() as Promise<CompanionMatchesResponse> : null))
-      .catch(() => null),
-  );
-
-  const results = await Promise.all(fetches);
-  const all: CompanionMatch[] = [];
-  for (const r of results) {
-    if (r?.matches) all.push(...r.matches);
-  }
-  return all;
+  const { matches } = await fetchCompanionMatches(profileId, leaderboardId, pages);
+  return matches;
 }

@@ -68,6 +68,14 @@ export default function TacticalBriefingCard({
                 ? "Plan de acción instantáneo para aplicar durante la pantalla de carga"
                 : "Instant game plan ready for the loading screen"}
             </p>
+            {(opponentCiv || currentMap) && (
+              <p className="text-xs text-slate-300 mt-0.5">
+                <span className="text-slate-500">vs </span>
+                <span className="font-semibold text-slate-200">{opponentName}</span>
+                {opponentCiv && <span className="text-amber-300/90"> · {opponentCiv}</span>}
+                {currentMap && <span className="text-slate-400"> · {currentMap}</span>}
+              </p>
+            )}
           </div>
         </div>
 
@@ -81,6 +89,17 @@ export default function TacticalBriefingCard({
             : (locale === "es" ? "Copiar ficha táctica" : "Copy briefing")}
         </button>
       </div>
+
+      {!briefing.hasHistory && (
+        <div className="flex items-start gap-2 mb-3 rounded-lg border border-slate-600/50 bg-slate-800/50 px-3 py-2 text-xs text-slate-300">
+          <AlertTriangle className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+          <span>
+            {locale === "es"
+              ? "No hay historial de partidas para este jugador ahora mismo, así que el plan es genérico y no está adaptado a su estilo."
+              : "No match history available for this player right now, so this plan is generic rather than tailored to their style."}
+          </span>
+        </div>
+      )}
 
       {/* Grid of Profile & Matchup */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
