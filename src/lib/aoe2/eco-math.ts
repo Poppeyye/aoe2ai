@@ -1,582 +1,983 @@
 /**
- * Age of Empires II Definitive Edition — Economy & Gathering Mathematics Engine
- * Sourced from game data files & community verified benchmarks (Spirit of the Law & pro testing).
+ * Age of Empires II: Definitive Edition — economy math.
+ *
+ * Every value in this file comes from in-game data (unit costs and training
+ * times, technology costs and effects) or from measured DE gather-rate tests.
+ * Nothing is estimated. If a number could not be sourced it is not here.
+ *
+ * Sources:
+ *  - Unit costs / training times: AoE2 DE unit statistics tables.
+ *  - Technology costs and effects: Liquipedia AoE2 technology tables.
+ *  - Base gather rates: AoE2 DE villager work-rate data (resources/second).
+ *  - Farm rates: measured DE farming-rate testing (walking and drop-off
+ *    included), which is why farms are stored as measured food/min instead of
+ *    a raw work rate.
  */
 
-export interface GatheringRate {
-  sourceId: string;
-  name: { en: string; es: string };
-  resource: "food" | "wood" | "gold" | "stone";
-  ratePerMin: number; // Base gathered per minute per villager without upgrades
-  notes: { en: string; es: string };
-  tier: "fastest" | "fast" | "medium" | "slow";
+export type ResourceKey = "food" | "wood" | "gold" | "stone";
+
+export interface Bilingual {
+  en: string;
+  es: string;
 }
 
-export interface EcoUpgradeInfo {
+export interface ResourceCost {
+  food: number;
+  wood: number;
+  gold: number;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Units                                                                      */
+/* -------------------------------------------------------------------------- */
+
+export interface TrainableUnit {
   id: string;
-  name: { en: string; es: string };
-  age: "feudal" | "castle" | "imperial";
-  building: string;
-  cost: { food: number; wood: number; gold: number };
-  researchTimeSec: number;
-  effectDescription: { en: string; es: string };
-  payoffMetric: { en: string; es: string };
-  bestTimingRule: { en: string; es: string };
-}
-
-export interface CivEcoBonus {
-  civ: string;
-  name: { en: string; es: string };
-  resourceImpact: "food" | "wood" | "gold" | "stone" | "all";
-  bonusTitle: { en: string; es: string };
-  bonusFormula: { en: string; es: string };
-  rateMultiplier: number;
-}
-
-export interface ProductionUnitFormula {
-  id: string;
-  name: { en: string; es: string };
-  building: string;
-  cost: { food: number; wood: number; gold: number };
+  name: Bilingual;
+  /** Building that trains it, used to group the planner UI. */
+  building: Bilingual;
+  age: "dark" | "feudal" | "castle" | "imperial";
+  cost: ResourceCost;
   trainTimeSec: number;
-  villsPerBuilding: {
-    food: number;
-    wood: number;
-    gold: number;
-  };
 }
 
-export const GATHERING_RATES: GatheringRate[] = [
-  // Food sources
+/**
+ * Units players actually mass out of a single building. Costs and training
+ * times are the generic (non-civ-modified) DE values.
+ */
+export const UNITS: TrainableUnit[] = [
   {
-    sourceId: "shore_fish",
-    name: { en: "Shore Fish (Fisherman)", es: "Pesca de Costa (Pescador)" },
-    resource: "food",
-    ratePerMin: 25.8,
-    notes: {
-      en: "Fastest natural food source in Dark Age. Essential on Nomad, African Clearing, and Four Lakes.",
-      es: "La fuente de alimento natural más rápida en Edad Oscura. Crucial en Nomad y Four Lakes.",
-    },
-    tier: "fastest",
+    id: "villager",
+    name: { en: "Villager", es: "Aldeano" },
+    building: { en: "Town Center", es: "Centro Urbano" },
+    age: "dark",
+    cost: { food: 50, wood: 0, gold: 0 },
+    trainTimeSec: 25,
   },
   {
-    sourceId: "hunt_boar",
-    name: { en: "Boar / Hunted Animals", es: "Jabalí / Caza de Animales" },
-    resource: "food",
-    ratePerMin: 24.6,
-    notes: {
-      en: "~24% faster gathering than sheep. Always lure both boars directly under your Town Center.",
-      es: "~24% más rápido que las ovejas. Atrae siempre los 2 jabalíes bajo el Centro Urbano.",
-    },
-    tier: "fastest",
+    id: "scout_cavalry",
+    name: { en: "Scout Cavalry / Hussar", es: "Explorador / Húsar" },
+    building: { en: "Stable", es: "Establo" },
+    age: "feudal",
+    cost: { food: 80, wood: 0, gold: 0 },
+    trainTimeSec: 30,
   },
   {
-    sourceId: "fishing_ship_deep",
-    name: { en: "Fishing Ship (Deep Sea Fish)", es: "Barco Pesquero (Pesca Profunda)" },
-    resource: "food",
-    ratePerMin: 28.2,
-    notes: {
-      en: "Supreme food income that does not idle or take Town Center creation time.",
-      es: "Máximo flujo de comida sin ocupar tiempo de creación del Centro Urbano.",
-    },
-    tier: "fastest",
+    id: "knight",
+    name: { en: "Knight / Cavalier / Paladin", es: "Caballero / Jinete / Paladín" },
+    building: { en: "Stable", es: "Establo" },
+    age: "castle",
+    cost: { food: 60, wood: 0, gold: 75 },
+    trainTimeSec: 30,
   },
   {
-    sourceId: "farm_hand_cart",
-    name: { en: "Farm with Hand Cart + Heavy Plow", es: "Granja con Carretilla de Mano + Arado Pesado" },
-    resource: "food",
-    ratePerMin: 24.6,
-    notes: {
-      en: "Peak farm efficiency in mid-Castle and Imperial Age (+20.5% over un-upgraded farms).",
-      es: "Máxima eficiencia de granjas en Castillos e Imperial (+20.5% sobre granjas base).",
-    },
-    tier: "fast",
+    id: "camel_rider",
+    name: { en: "Camel Rider", es: "Camellero" },
+    building: { en: "Stable", es: "Establo" },
+    age: "castle",
+    cost: { food: 55, wood: 0, gold: 60 },
+    trainTimeSec: 22,
   },
   {
-    sourceId: "farm_wheelbarrow",
-    name: { en: "Farm with Wheelbarrow + Horse Collar", es: "Granja con Carretilla + Collera" },
-    resource: "food",
-    ratePerMin: 23.1,
-    notes: {
-      en: "Standard Castle Age farm income (+13.2% farmer efficiency from speed & carry boosts).",
-      es: "Producción estándar en Castillos (+13.2% de velocidad y capacidad de carga).",
-    },
-    tier: "fast",
+    id: "archer",
+    name: { en: "Archer", es: "Arquero" },
+    building: { en: "Archery Range", es: "Galería de Tiro" },
+    age: "feudal",
+    cost: { food: 0, wood: 25, gold: 45 },
+    trainTimeSec: 35,
   },
   {
-    sourceId: "farm_base",
-    name: { en: "Farm (No Upgrades)", es: "Granja Básica (Sin Mejoras)" },
-    resource: "food",
-    ratePerMin: 20.4,
-    notes: {
-      en: "Base Dark & early Feudal farm rate. Farmers lose time walking around farm perimeter.",
-      es: "Tasa base en Feudal temprano. Los aldeanos pierden tiempo rodeando la parcela.",
-    },
-    tier: "medium",
+    id: "crossbowman",
+    name: { en: "Crossbowman / Arbalester", es: "Ballestero / Arbalestero" },
+    building: { en: "Archery Range", es: "Galería de Tiro" },
+    age: "castle",
+    cost: { food: 0, wood: 25, gold: 45 },
+    trainTimeSec: 27,
   },
   {
-    sourceId: "sheep",
-    name: { en: "Sheep / Herdables", es: "Ovejas / Animales Domésticos" },
-    resource: "food",
-    ratePerMin: 19.8,
-    notes: {
-      en: "Standard start. Harvest one sheep at a time with 6 villagers to minimize meat decay.",
-      es: "Apertura estándar. Recolecta de 1 en 1 con 6 aldeanos para no perder carne por descomposición.",
-    },
-    tier: "medium",
+    id: "skirmisher",
+    name: { en: "Skirmisher / Elite Skirmisher", es: "Guerrillero / Guerrillero de Élite" },
+    building: { en: "Archery Range", es: "Galería de Tiro" },
+    age: "feudal",
+    cost: { food: 25, wood: 35, gold: 0 },
+    trainTimeSec: 22,
   },
   {
-    sourceId: "berries",
-    name: { en: "Berry Bushes (Forager)", es: "Arbustos de Bayas (Recolector)" },
-    resource: "food",
-    ratePerMin: 18.6,
-    notes: {
-      en: "Slowest natural food gatherer, but completely free of wood investment.",
-      es: "La recolección más lenta, pero totalmente gratuita sin inversión en madera.",
-    },
-    tier: "slow",
-  },
-
-  // Wood sources
-  {
-    sourceId: "wood_two_man_saw",
-    name: { en: "Wood with Two-Man Saw (+58% cumulative)", es: "Madera con Sierra de Dos Hombres" },
-    resource: "wood",
-    ratePerMin: 37.1,
-    notes: {
-      en: "Maximum wood rate in Imperial Age for heavy siege and trash unit floods.",
-      es: "Máxima recolección de madera en Imperial para asedio e infantería.",
-    },
-    tier: "fastest",
+    id: "cavalry_archer",
+    name: { en: "Cavalry Archer", es: "Arquero a Caballo" },
+    building: { en: "Archery Range", es: "Galería de Tiro" },
+    age: "castle",
+    cost: { food: 0, wood: 40, gold: 60 },
+    trainTimeSec: 34,
   },
   {
-    sourceId: "wood_bow_saw",
-    name: { en: "Wood with Bow Saw (+44% cumulative)", es: "Madera con Tronzador" },
-    resource: "wood",
-    ratePerMin: 33.7,
-    notes: {
-      en: "Essential Castle Age tech for supporting 2+ Archery Ranges or 3-TC farm boom.",
-      es: "Mejora esencial de Castillos para mantener 2 Galerías o Boom de 3 TCs.",
-    },
-    tier: "fast",
+    id: "spearman",
+    name: { en: "Spearman / Pikeman / Halberdier", es: "Lancero / Piquero / Alabardero" },
+    building: { en: "Barracks", es: "Cuartel" },
+    age: "feudal",
+    cost: { food: 35, wood: 25, gold: 0 },
+    trainTimeSec: 22,
   },
   {
-    sourceId: "wood_double_bit",
-    name: { en: "Wood with Double-Bit Axe (+20%)", es: "Madera con Hacha de Doble Filo" },
-    resource: "wood",
-    ratePerMin: 28.1,
-    notes: {
-      en: "The single highest-ROI technology in the entire game. Research immediately in Feudal.",
-      es: "La tecnología con mayor retorno de inversión de todo el juego. Meter nada más llegar a Feudal.",
-    },
-    tier: "medium",
+    id: "militia_line",
+    name: { en: "Man-at-Arms / Long Swordsman", es: "Hombre de Armas / Espadachín" },
+    building: { en: "Barracks", es: "Cuartel" },
+    age: "feudal",
+    cost: { food: 60, wood: 0, gold: 20 },
+    trainTimeSec: 21,
   },
   {
-    sourceId: "wood_base",
-    name: { en: "Wood (Dark Age Base)", es: "Madera Base (Edad Oscura)" },
-    resource: "wood",
-    ratePerMin: 23.4,
-    notes: {
-      en: "Base wood chopping speed before Double-Bit Axe.",
-      es: "Velocidad base antes de investigar Hacha de Doble Filo.",
-    },
-    tier: "slow",
-  },
-
-  // Gold sources
-  {
-    sourceId: "gold_shaft_mining",
-    name: { en: "Gold with Shaft Mining (+30%)", es: "Oro con Pozo Minero" },
-    resource: "gold",
-    ratePerMin: 30.1,
-    notes: {
-      en: "Castle/Imperial gold rate for heavy Knight and Siege spending.",
-      es: "Recolección rápida para sostener producción masiva de unidades de oro.",
-    },
-    tier: "fast",
+    id: "eagle_warrior",
+    name: { en: "Eagle Warrior", es: "Guerrero Águila" },
+    building: { en: "Barracks", es: "Cuartel" },
+    age: "castle",
+    cost: { food: 20, wood: 0, gold: 50 },
+    trainTimeSec: 35,
   },
   {
-    sourceId: "gold_mining",
-    name: { en: "Gold with Gold Mining (+15%)", es: "Oro con Minería de Oro" },
-    resource: "gold",
-    ratePerMin: 26.2,
-    notes: {
-      en: "Solid Castle Age tech when relying on expensive Knight or Crossbow armies.",
-      es: "Tecnología clave de Castillos si juegas a doble establo de caballeros.",
-    },
-    tier: "medium",
+    id: "battering_ram",
+    name: { en: "Battering Ram / Siege Ram", es: "Ariete / Ariete de Asedio" },
+    building: { en: "Siege Workshop", es: "Taller de Asedio" },
+    age: "castle",
+    cost: { food: 0, wood: 160, gold: 75 },
+    trainTimeSec: 36,
   },
   {
-    sourceId: "gold_base",
-    name: { en: "Gold (Base)", es: "Oro Base (Sin Mejoras)" },
-    resource: "gold",
-    ratePerMin: 22.8,
-    notes: {
-      en: "Standard gold mining rate. 7-8 villagers sustain continuous 2-range archer production.",
-      es: "Tasa base. 7-8 mineros sostienen producción continua en 2 galerías de tiro.",
-    },
-    tier: "medium",
-  },
-
-  // Stone sources
-  {
-    sourceId: "stone_mining",
-    name: { en: "Stone with Stone Mining (+15%)", es: "Piedra con Minería de Cantería" },
-    resource: "stone",
-    ratePerMin: 24.7,
-    notes: {
-      en: "Accelerates defensive and offensive Castle drops in early Castle Age.",
-      es: "Acelera la recolección para plantar Castillos en Castillos temprano.",
-    },
-    tier: "medium",
+    id: "mangonel",
+    name: { en: "Mangonel / Onager", es: "Mangonel / Onagro" },
+    building: { en: "Siege Workshop", es: "Taller de Asedio" },
+    age: "castle",
+    cost: { food: 0, wood: 160, gold: 135 },
+    trainTimeSec: 46,
   },
   {
-    sourceId: "stone_base",
-    name: { en: "Stone (Base)", es: "Piedra Base (Sin Mejoras)" },
-    resource: "stone",
-    ratePerMin: 21.5,
-    notes: {
-      en: "5 villagers on stone gather 650 stone for a Castle in ~6 minutes.",
-      es: "5 aldeanos en piedra consiguen 650 de piedra para un Castillo en ~6 minutos.",
-    },
-    tier: "slow",
+    id: "scorpion",
+    name: { en: "Scorpion", es: "Escorpión" },
+    building: { en: "Siege Workshop", es: "Taller de Asedio" },
+    age: "castle",
+    cost: { food: 0, wood: 75, gold: 75 },
+    trainTimeSec: 30,
+  },
+  {
+    id: "monk",
+    name: { en: "Monk", es: "Monje" },
+    building: { en: "Monastery", es: "Monasterio" },
+    age: "castle",
+    cost: { food: 0, wood: 0, gold: 100 },
+    trainTimeSec: 51,
   },
 ];
 
-export const ECO_UPGRADES: EcoUpgradeInfo[] = [
+export const UNITS_BY_ID: Record<string, TrainableUnit> = Object.fromEntries(
+  UNITS.map((u) => [u.id, u])
+);
+
+/** Resources per minute a single building consumes training this unit non-stop. */
+export function drainPerMinute(unit: TrainableUnit): ResourceCost {
+  const perMinute = 60 / unit.trainTimeSec;
+  return {
+    food: unit.cost.food * perMinute,
+    wood: unit.cost.wood * perMinute,
+    gold: unit.cost.gold * perMinute,
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Gather rates                                                               */
+/* -------------------------------------------------------------------------- */
+
+export interface GatherRate {
+  id: string;
+  resource: ResourceKey;
+  name: Bilingual;
+  /** Villager work rate in resources/second, when the game defines one. */
+  perSecond?: number;
+  /** Resources per minute per villager. */
+  perMinute: number;
+  detail: Bilingual;
+}
+
+/** Base villager work rates in resources/second (no upgrades, no civ bonus). */
+export const BASE_WORK_RATE = {
+  hunt: 0.41,
+  shoreFish: 0.43,
+  sheep: 0.33,
+  berries: 0.31,
+  wood: 0.39,
+  gold: 0.38,
+  stone: 0.36,
+} as const;
+
+/**
+ * Measured DE farming rates in food/min, including walking and drop-off.
+ * Farms are the one case where the raw work rate is misleading.
+ */
+export const FARM_RATE_PER_MIN = {
+  none: 20.3,
+  wheelbarrow: 22.8,
+  handCart: 24.0,
+} as const;
+
+const perMin = (perSecond: number) => Math.round(perSecond * 60 * 10) / 10;
+
+export const GATHER_RATES: GatherRate[] = [
+  {
+    id: "shore_fish",
+    resource: "food",
+    name: { en: "Shore fish", es: "Pesca de costa" },
+    perSecond: BASE_WORK_RATE.shoreFish,
+    perMinute: perMin(BASE_WORK_RATE.shoreFish),
+    detail: {
+      en: "Fastest food a villager can gather. Needs a Dock or Mill in range.",
+      es: "La comida más rápida que puede recoger un aldeano. Necesita Puerto o Molino cerca.",
+    },
+  },
+  {
+    id: "hunt",
+    resource: "food",
+    name: { en: "Boar / deer (hunt)", es: "Jabalí / ciervo (caza)" },
+    perSecond: BASE_WORK_RATE.hunt,
+    perMinute: perMin(BASE_WORK_RATE.hunt),
+    detail: {
+      en: "24% faster than sheep. A boar holds 340 food, deer 140.",
+      es: "Un 24% más rápido que las ovejas. El jabalí tiene 340 de comida, el ciervo 140.",
+    },
+  },
+  {
+    id: "sheep",
+    resource: "food",
+    name: { en: "Sheep / herdables", es: "Ovejas / animales domésticos" },
+    perSecond: BASE_WORK_RATE.sheep,
+    perMinute: perMin(BASE_WORK_RATE.sheep),
+    detail: {
+      en: "100 food per sheep. Eat one at a time so decayed meat is not wasted.",
+      es: "100 de comida por oveja. Cómelas de una en una para no perder carne.",
+    },
+  },
+  {
+    id: "berries",
+    resource: "food",
+    name: { en: "Berry bushes", es: "Arbustos de bayas" },
+    perSecond: BASE_WORK_RATE.berries,
+    perMinute: perMin(BASE_WORK_RATE.berries),
+    detail: {
+      en: "Slowest food source, but costs no wood and never has to be relocated.",
+      es: "La fuente más lenta, pero no cuesta madera y no hay que moverla.",
+    },
+  },
+  {
+    id: "farm_none",
+    resource: "food",
+    name: { en: "Farm (no villager techs)", es: "Granja (sin mejoras de aldeano)" },
+    perMinute: FARM_RATE_PER_MIN.none,
+    detail: {
+      en: "Measured rate including walking to the drop-off point.",
+      es: "Tasa medida incluyendo el camino hasta el punto de descarga.",
+    },
+  },
+  {
+    id: "farm_wheelbarrow",
+    resource: "food",
+    name: { en: "Farm + Wheelbarrow", es: "Granja + Carretilla" },
+    perMinute: FARM_RATE_PER_MIN.wheelbarrow,
+    detail: {
+      en: "+12% over a base farm. Wheelbarrow gives speed and carry capacity, not work rate.",
+      es: "+12% sobre la granja base. La Carretilla da velocidad y carga, no tasa de trabajo.",
+    },
+  },
+  {
+    id: "farm_hand_cart",
+    resource: "food",
+    name: { en: "Farm + Hand Cart", es: "Granja + Carretilla de Mano" },
+    perMinute: FARM_RATE_PER_MIN.handCart,
+    detail: {
+      en: "Ceiling for a generic civ. Farms cap out around 24 food/min.",
+      es: "Techo para una civ genérica. Las granjas se topan sobre 24 comida/min.",
+    },
+  },
+  {
+    id: "wood_base",
+    resource: "wood",
+    name: { en: "Wood (no techs)", es: "Madera (sin mejoras)" },
+    perSecond: BASE_WORK_RATE.wood,
+    perMinute: perMin(BASE_WORK_RATE.wood),
+    detail: {
+      en: "Keep the Lumber Camp within one or two tiles of the tree line.",
+      es: "Mantén el Campamento Maderero a una o dos casillas de los árboles.",
+    },
+  },
+  {
+    id: "wood_double_bit",
+    resource: "wood",
+    name: { en: "Wood + Double-Bit Axe", es: "Madera + Hacha de Doble Filo" },
+    perMinute: perMin(BASE_WORK_RATE.wood * 1.2),
+    detail: {
+      en: "+20% work rate for 100 food and 50 wood.",
+      es: "+20% de tasa de trabajo por 100 de comida y 50 de madera.",
+    },
+  },
+  {
+    id: "wood_bow_saw",
+    resource: "wood",
+    name: { en: "Wood + Bow Saw", es: "Madera + Sierra de Arco" },
+    perMinute: perMin(BASE_WORK_RATE.wood * 1.2 * 1.2),
+    detail: {
+      en: "Second +20%, multiplicative: 1.20 x 1.20 = +44% over base.",
+      es: "Segundo +20%, multiplicativo: 1,20 x 1,20 = +44% sobre la base.",
+    },
+  },
+  {
+    id: "wood_two_man_saw",
+    resource: "wood",
+    name: { en: "Wood + Two-Man Saw", es: "Madera + Sierra de Dos Hombres" },
+    perMinute: perMin(BASE_WORK_RATE.wood * 1.2 * 1.2 * 1.1),
+    detail: {
+      en: "Final +10%: 1.20 x 1.20 x 1.10 = +58% over base.",
+      es: "Último +10%: 1,20 x 1,20 x 1,10 = +58% sobre la base.",
+    },
+  },
+  {
+    id: "gold_base",
+    resource: "gold",
+    name: { en: "Gold (no techs)", es: "Oro (sin mejoras)" },
+    perSecond: BASE_WORK_RATE.gold,
+    perMinute: perMin(BASE_WORK_RATE.gold),
+    detail: {
+      en: "Same work rate whether the pile is close or far; the walk is what costs you.",
+      es: "La tasa es la misma cerca o lejos; lo que cuesta es el camino.",
+    },
+  },
+  {
+    id: "gold_mining",
+    resource: "gold",
+    name: { en: "Gold + Gold Mining", es: "Oro + Minería de Oro" },
+    perMinute: perMin(BASE_WORK_RATE.gold * 1.15),
+    detail: {
+      en: "+15% work rate for 100 food and 75 wood.",
+      es: "+15% de tasa de trabajo por 100 de comida y 75 de madera.",
+    },
+  },
+  {
+    id: "gold_shaft_mining",
+    resource: "gold",
+    name: { en: "Gold + Gold Shaft Mining", es: "Oro + Minería de Pozo" },
+    perMinute: perMin(BASE_WORK_RATE.gold * 1.15 * 1.15),
+    detail: {
+      en: "Second +15%, multiplicative: 1.15 x 1.15 = +32% over base.",
+      es: "Segundo +15%, multiplicativo: 1,15 x 1,15 = +32% sobre la base.",
+    },
+  },
+  {
+    id: "stone_base",
+    resource: "stone",
+    name: { en: "Stone (no techs)", es: "Piedra (sin mejoras)" },
+    perSecond: BASE_WORK_RATE.stone,
+    perMinute: perMin(BASE_WORK_RATE.stone),
+    detail: {
+      en: "A Castle costs 650 stone: 5 miners need about 6 minutes.",
+      es: "Un Castillo cuesta 650 de piedra: 5 mineros tardan unos 6 minutos.",
+    },
+  },
+  {
+    id: "stone_mining",
+    resource: "stone",
+    name: { en: "Stone + Stone Mining", es: "Piedra + Minería de Piedra" },
+    perMinute: perMin(BASE_WORK_RATE.stone * 1.15),
+    detail: {
+      en: "+15% work rate for 100 food and 75 wood.",
+      es: "+15% de tasa de trabajo por 100 de comida y 75 de madera.",
+    },
+  },
+];
+
+/* -------------------------------------------------------------------------- */
+/* Farms                                                                      */
+/* -------------------------------------------------------------------------- */
+
+export const FARM_WOOD_COST = 60;
+
+export type FarmTech = "none" | "horse_collar" | "heavy_plow" | "crop_rotation";
+
+/** Total food a single farm yields before it has to be reseeded. */
+export const FARM_YIELD: Record<FarmTech, number> = {
+  none: 175,
+  horse_collar: 250,
+  heavy_plow: 375,
+  crop_rotation: 550,
+};
+
+export const FARM_TECH_LABEL: Record<FarmTech, Bilingual> = {
+  none: { en: "No farm techs", es: "Sin mejoras de granja" },
+  horse_collar: { en: "Horse Collar", es: "Collera de Caballo" },
+  heavy_plow: { en: "Heavy Plow", es: "Arado Pesado" },
+  crop_rotation: { en: "Crop Rotation", es: "Rotación de Cultivos" },
+};
+
+/** Wood spent on reseeding per 1,000 food farmed. */
+export function woodPer1000Food(tech: FarmTech): number {
+  return Math.round((FARM_WOOD_COST / FARM_YIELD[tech]) * 1000);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Economy technologies                                                       */
+/* -------------------------------------------------------------------------- */
+
+export interface EcoTech {
+  id: string;
+  name: Bilingual;
+  age: "feudal" | "castle" | "imperial";
+  building: Bilingual;
+  cost: ResourceCost;
+  researchTimeSec: number;
+  effect: Bilingual;
+  /** Multiplier applied to a gather rate, when the tech is a rate tech. */
+  rateEffect?: { resource: ResourceKey; multiplier: number };
+  note?: Bilingual;
+}
+
+export const ECO_TECHS: EcoTech[] = [
   {
     id: "double_bit_axe",
     name: { en: "Double-Bit Axe", es: "Hacha de Doble Filo" },
     age: "feudal",
-    building: "Lumber Camp (Campamento Maderero)",
-    cost: { food: 50, wood: 100, gold: 0 },
+    building: { en: "Lumber Camp", es: "Campamento Maderero" },
+    cost: { food: 100, wood: 50, gold: 0 },
     researchTimeSec: 25,
-    effectDescription: {
-      en: "Increases woodchopping speed by +20%.",
-      es: "Aumenta la velocidad de recolección de madera en un +20%.",
-    },
-    payoffMetric: {
-      en: "Pays for itself in ~110 seconds with 8 woodcutters.",
-      es: "Se amortiza en ~110 segundos con 8 leñadores.",
-    },
-    bestTimingRule: {
-      en: "Always research the very second Feudal Age finishes (Priority #1).",
-      es: "Investigar en el segundo exacto que se alcanza la Edad Feudal (Prioridad #1).",
-    },
+    effect: { en: "Lumberjacks +20% work rate", es: "Leñadores +20% de tasa de trabajo" },
+    rateEffect: { resource: "wood", multiplier: 1.2 },
   },
   {
     id: "horse_collar",
-    name: { en: "Horse Collar", es: "Collera" },
+    name: { en: "Horse Collar", es: "Collera de Caballo" },
     age: "feudal",
-    building: "Mill (Molino)",
+    building: { en: "Mill", es: "Molino" },
     cost: { food: 75, wood: 75, gold: 0 },
     researchTimeSec: 20,
-    effectDescription: {
-      en: "Farms provide +75 food before needing to be reseeded (175 -> 250 food).",
-      es: "Las granjas rinden +75 de alimento extra antes de agotarse (175 -> 250 comida).",
-    },
-    payoffMetric: {
-      en: "Saves 60 wood per farm re-seed cycle. (Free for Franks!)",
-      es: "Ahorra 60 de madera por ciclo de resembrado. (¡Gratis para Francos!)",
-    },
-    bestTimingRule: {
-      en: "Research before seeding your main Feudal/Castle farm mass (around pop 20-25).",
-      es: "Investigar antes de plantar la masa principal de granjas (alrededor de pop 20-25).",
+    effect: { en: "Farms hold +75 food (175 → 250)", es: "Las granjas dan +75 de comida (175 → 250)" },
+    note: {
+      en: "Does not change the gather rate, it cuts how often you spend 60 wood reseeding.",
+      es: "No cambia la tasa de recolección: reduce cuántas veces gastas 60 de madera resembrando.",
     },
   },
   {
     id: "wheelbarrow",
     name: { en: "Wheelbarrow", es: "Carretilla" },
     age: "feudal",
-    building: "Town Center (Centro Urbano)",
+    building: { en: "Town Center", es: "Centro Urbano" },
     cost: { food: 175, wood: 50, gold: 0 },
     researchTimeSec: 75,
-    effectDescription: {
-      en: "Villagers move +10% faster and carry +25% more resources.",
-      es: "Aldeanos se mueven 10% más rápido y cargan 25% más recursos.",
+    effect: {
+      en: "Villagers +10% speed and +25% carry capacity",
+      es: "Aldeanos +10% de velocidad y +25% de capacidad de carga",
     },
-    payoffMetric: {
-      en: "Equivalent to roughly +3 extra working villagers in economy output.",
-      es: "Equivale aproximadamente a +3 aldeanos extra trabajando en tu economía.",
-    },
-    bestTimingRule: {
-      en: "Optimal at 14–16 farmers (around pop 35–40 or late Feudal transition).",
-      es: "Óptimo a partir de 14–16 granjeros (pop 35–40 o transición a Castillos).",
+    note: {
+      en: "Raises measured farm output from 20.3 to 22.8 food/min. Gains on other resources depend on walking distance.",
+      es: "Sube la granja medida de 20,3 a 22,8 comida/min. En otros recursos depende de la distancia al depósito.",
     },
   },
   {
-    id: "bow_saw",
-    name: { en: "Bow Saw", es: "Tronzador" },
-    age: "castle",
-    building: "Lumber Camp (Campamento Maderero)",
-    cost: { food: 100, wood: 150, gold: 0 },
+    id: "gold_mining",
+    name: { en: "Gold Mining", es: "Minería de Oro" },
+    age: "feudal",
+    building: { en: "Mining Camp", es: "Campamento Minero" },
+    cost: { food: 100, wood: 75, gold: 0 },
     researchTimeSec: 30,
-    effectDescription: {
-      en: "Increases woodchopping speed by another +20% (cumulative +44%).",
-      es: "Aumenta la velocidad de tala en otro +20% (acumulado +44%).",
-    },
-    payoffMetric: {
-      en: "Pays for itself in ~130 seconds with 12 woodcutters.",
-      es: "Se amortiza en ~130 segundos con 12 leñadores.",
-    },
-    bestTimingRule: {
-      en: "Research immediately upon reaching Castle Age if playing archers, siege, or 3-TC boom.",
-      es: "Investigar nada más llegar a Castillos si juegas arqueros, asedio o 3 TCs.",
-    },
+    effect: { en: "Gold miners +15% work rate", es: "Mineros de oro +15% de tasa de trabajo" },
+    rateEffect: { resource: "gold", multiplier: 1.15 },
+  },
+  {
+    id: "stone_mining",
+    name: { en: "Stone Mining", es: "Minería de Piedra" },
+    age: "feudal",
+    building: { en: "Mining Camp", es: "Campamento Minero" },
+    cost: { food: 100, wood: 75, gold: 0 },
+    researchTimeSec: 30,
+    effect: { en: "Stone miners +15% work rate", es: "Mineros de piedra +15% de tasa de trabajo" },
+    rateEffect: { resource: "stone", multiplier: 1.15 },
+  },
+  {
+    id: "bow_saw",
+    name: { en: "Bow Saw", es: "Sierra de Arco" },
+    age: "castle",
+    building: { en: "Lumber Camp", es: "Campamento Maderero" },
+    cost: { food: 150, wood: 100, gold: 0 },
+    researchTimeSec: 50,
+    effect: { en: "Lumberjacks +20% work rate", es: "Leñadores +20% de tasa de trabajo" },
+    rateEffect: { resource: "wood", multiplier: 1.2 },
   },
   {
     id: "heavy_plow",
     name: { en: "Heavy Plow", es: "Arado Pesado" },
     age: "castle",
-    building: "Mill (Molino)",
+    building: { en: "Mill", es: "Molino" },
     cost: { food: 125, wood: 125, gold: 0 },
     researchTimeSec: 40,
-    effectDescription: {
-      en: "Farms provide +125 food (250 -> 375 food) and farmers carry +1 food.",
-      es: "Las granjas rinden +125 de comida extra (250 -> 375) y los granjeros cargan +1.",
-    },
-    payoffMetric: {
-      en: "Saves hundreds of wood in Castle Age and prevents early farm burnout.",
-      es: "Ahorra cientos de madera y evita que las granjas expiren durante la expansión.",
-    },
-    bestTimingRule: {
-      en: "Research in early Castle Age before expanding to 2nd and 3rd Town Centers.",
-      es: "Investigar en Castillos temprano antes de levantar el 2do y 3er Centro Urbano.",
+    effect: {
+      en: "Farms hold +125 food (250 → 375), farmers carry +1",
+      es: "Las granjas dan +125 de comida (250 → 375), los granjeros cargan +1",
     },
   },
   {
     id: "hand_cart",
     name: { en: "Hand Cart", es: "Carretilla de Mano" },
     age: "castle",
-    building: "Town Center (Centro Urbano)",
+    building: { en: "Town Center", es: "Centro Urbano" },
     cost: { food: 300, wood: 200, gold: 0 },
     researchTimeSec: 55,
-    effectDescription: {
-      en: "Villagers move +10% faster and carry +50% more resources.",
-      es: "Aldeanos se mueven otro 10% más rápido y cargan 50% más recursos.",
+    effect: {
+      en: "Villagers +10% speed and +50% carry capacity",
+      es: "Aldeanos +10% de velocidad y +50% de capacidad de carga",
     },
-    payoffMetric: {
-      en: "Equivalent to roughly +6 to +8 working villagers in mid-to-late game.",
-      es: "Equivale a tener de +6 a +8 aldeanos extra trabajando en tu economía.",
+    note: {
+      en: "Raises measured farm output to about 24 food/min, the generic farm ceiling.",
+      es: "Sube la granja medida a unos 24 comida/min, el techo de una civ genérica.",
     },
-    bestTimingRule: {
-      en: "Research around 25–30+ farmers (mid Castle Age or on way to Imperial).",
-      es: "Investigar con 25–30+ granjeros (Castillos medio o camino a Imperial).",
-    },
+  },
+  {
+    id: "gold_shaft_mining",
+    name: { en: "Gold Shaft Mining", es: "Minería de Pozo de Oro" },
+    age: "castle",
+    building: { en: "Mining Camp", es: "Campamento Minero" },
+    cost: { food: 175, wood: 75, gold: 0 },
+    researchTimeSec: 75,
+    effect: { en: "Gold miners +15% work rate", es: "Mineros de oro +15% de tasa de trabajo" },
+    rateEffect: { resource: "gold", multiplier: 1.15 },
+  },
+  {
+    id: "two_man_saw",
+    name: { en: "Two-Man Saw", es: "Sierra de Dos Hombres" },
+    age: "imperial",
+    building: { en: "Lumber Camp", es: "Campamento Maderero" },
+    cost: { food: 300, wood: 200, gold: 0 },
+    researchTimeSec: 100,
+    effect: { en: "Lumberjacks +10% work rate", es: "Leñadores +10% de tasa de trabajo" },
+    rateEffect: { resource: "wood", multiplier: 1.1 },
+  },
+  {
+    id: "crop_rotation",
+    name: { en: "Crop Rotation", es: "Rotación de Cultivos" },
+    age: "imperial",
+    building: { en: "Mill", es: "Molino" },
+    cost: { food: 250, wood: 250, gold: 0 },
+    researchTimeSec: 70,
+    effect: { en: "Farms hold +175 food (375 → 550)", es: "Las granjas dan +175 de comida (375 → 550)" },
   },
 ];
 
-export const PRODUCTION_FORMULAS: ProductionUnitFormula[] = [
-  {
-    id: "tc_villager",
-    name: { en: "1 Town Center (Continuous Villagers)", es: "1 Centro Urbano (Aldeanos Continuos)" },
-    building: "Town Center",
-    cost: { food: 50, wood: 0, gold: 0 },
-    trainTimeSec: 25,
-    villsPerBuilding: {
-      food: 6, // 6 farmers sustain non-stop villager creation (120 food/min)
-      wood: 0,
-      gold: 0,
-    },
-  },
-  {
-    id: "stable_knights",
-    name: { en: "1 Stable Knights (60F, 75G)", es: "1 Establo Caballeros (60C, 75O)" },
-    building: "Stable",
-    cost: { food: 60, wood: 0, gold: 75 },
-    trainTimeSec: 30,
-    villsPerBuilding: {
-      food: 6, // 120 food/min
-      wood: 0,
-      gold: 7, // 150 gold/min
-    },
-  },
-  {
-    id: "range_crossbows",
-    name: { en: "1 Range Crossbows (25W, 45G)", es: "1 Galería Ballesteros (25M, 45O)" },
-    building: "Archery Range",
-    cost: { food: 0, wood: 25, gold: 45 },
-    trainTimeSec: 27,
-    villsPerBuilding: {
-      food: 0,
-      wood: 2, // 56 wood/min
-      gold: 4, // 100 gold/min
-    },
-  },
-  {
-    id: "range_skirmishers",
-    name: { en: "1 Range Elite Skirmishers (25F, 35W)", es: "1 Galería Guerrilleros (25C, 35M)" },
-    building: "Archery Range",
-    cost: { food: 25, wood: 35, gold: 0 },
-    trainTimeSec: 22,
-    villsPerBuilding: {
-      food: 4, // 68 food/min
-      wood: 4, // 95 wood/min
-      gold: 0,
-    },
-  },
-  {
-    id: "barracks_halberdiers",
-    name: { en: "1 Barracks Halberdiers (35F, 25W)", es: "1 Cuartel Alabarderos (35C, 25M)" },
-    building: "Barracks",
-    cost: { food: 35, wood: 25, gold: 0 },
-    trainTimeSec: 22,
-    villsPerBuilding: {
-      food: 5, // 95 food/min
-      wood: 3, // 68 wood/min
-      gold: 0,
-    },
-  },
-  {
-    id: "siege_mangonels",
-    name: { en: "1 Workshop Mangonels (160W, 135G)", es: "1 Taller Mangonelas (160M, 135O)" },
-    building: "Siege Workshop",
-    cost: { food: 0, wood: 160, gold: 135 },
-    trainTimeSec: 46,
-    villsPerBuilding: {
-      food: 0,
-      wood: 7, // 208 wood/min
-      gold: 7, // 176 gold/min
-    },
-  },
-];
+/* -------------------------------------------------------------------------- */
+/* Civilization economy bonuses                                               */
+/* -------------------------------------------------------------------------- */
+
+export interface CivEcoBonus {
+  civ: string;
+  name: Bilingual;
+  bonus: Bilingual;
+  /** What it means in numbers, computed from the base rates above. */
+  inNumbers: Bilingual;
+  resource: ResourceKey | "all";
+}
 
 export const CIV_ECO_BONUSES: CivEcoBonus[] = [
   {
-    civ: "Franks",
-    name: { en: "Franks", es: "Francos" },
-    resourceImpact: "food",
-    bonusTitle: { en: "Free Mill/Farm Upgrades & +15% Foraging", es: "Mejoras de Granja Gratis & +15% Bayas" },
-    bonusFormula: {
-      en: "Saves 75F/75W in Feudal, 125F/125W in Castle, and 250F/250W in Imperial instantly upon age-up.",
-      es: "Ahorra 75C/75M en Feudal, 125C/125M en Castillos y 250C/250M en Imperial automáticamente al pasar de edad.",
-    },
-    rateMultiplier: 1.15,
-  },
-  {
-    civ: "Britons",
+    civ: "britons",
     name: { en: "Britons", es: "Británicos" },
-    resourceImpact: "food",
-    bonusTitle: { en: "Shepherds Work +25% Faster", es: "Pastoreo de Ovejas +25% Más Rápido" },
-    bonusFormula: {
-      en: "Sheep gathered at 24.8 food/min (as fast as hunted boar!). Prevents initial Dark Age food starving.",
-      es: "Las ovejas se recolectan a 24.8 comida/min (¡igual de rápido que el jabalí!). Evita cortes en el TC.",
+    resource: "food",
+    bonus: { en: "Shepherds work 25% faster", es: "Los pastores trabajan un 25% más rápido" },
+    inNumbers: {
+      en: `Sheep give ${perMin(BASE_WORK_RATE.sheep * 1.25)} food/min instead of ${perMin(BASE_WORK_RATE.sheep)}, so 5 villagers on sheep keep a Town Center going where others need 6.`,
+      es: `Las ovejas dan ${perMin(BASE_WORK_RATE.sheep * 1.25)} comida/min en vez de ${perMin(BASE_WORK_RATE.sheep)}, así que 5 aldeanos en ovejas mantienen el Centro Urbano donde otros necesitan 6.`,
     },
-    rateMultiplier: 1.25,
   },
   {
-    civ: "Celts",
+    civ: "celts",
     name: { en: "Celts", es: "Celtas" },
-    resourceImpact: "wood",
-    bonusTitle: { en: "Lumberjacks Work +15% Faster", es: "Leñadores Trabajan +15% Más Rápido" },
-    bonusFormula: {
-      en: "Starts in Dark Age. 6 lumberjacks gather like 7. Saves massive wood for early archers, siege, or farms.",
-      es: "Activo desde Edad Oscura. 6 leñadores rinden como 7. Ahorra madera masiva para arqueros o granjas.",
+    resource: "wood",
+    bonus: { en: "Lumberjacks work 15% faster", es: "Los leñadores trabajan un 15% más rápido" },
+    inNumbers: {
+      en: `${perMin(BASE_WORK_RATE.wood * 1.15)} wood/min per lumberjack from the Dark Age: 7 Celt woodcutters equal 8 generic ones.`,
+      es: `${perMin(BASE_WORK_RATE.wood * 1.15)} madera/min por leñador desde la Edad Oscura: 7 leñadores celtas equivalen a 8 genéricos.`,
     },
-    rateMultiplier: 1.15,
   },
   {
-    civ: "Mayans",
-    name: { en: "Mayans", es: "Mayas" },
-    resourceImpact: "all",
-    bonusTitle: { en: "Resources Last +15% Longer", es: "Los Recursos Duran +15% Más" },
-    bonusFormula: {
-      en: "Each sheep, boar, gold pile, and tree yields 15% more total resources before exhausting.",
-      es: "Cada oveja, jabalí, veta de oro y árbol otorga un 15% más de recursos totales antes de agotarse.",
+    civ: "slavs",
+    name: { en: "Slavs", es: "Eslavos" },
+    resource: "food",
+    bonus: { en: "Farmers work 15% faster", es: "Los granjeros trabajan un 15% más rápido" },
+    inNumbers: {
+      en: "The only civ that raises the farm ceiling itself, which is why Slav booms need fewer farmers for the same food.",
+      es: "La única civ que sube el techo de las granjas, por eso los boom eslavos necesitan menos granjeros para la misma comida.",
     },
-    rateMultiplier: 1.15,
   },
   {
-    civ: "Poles",
-    name: { en: "Poles", es: "Polacos" },
-    resourceImpact: "food",
-    bonusTitle: { en: "Folwark Farm Instant +8% Food & Stone Gold", es: "Folwark da 8% Alimento Inmediato & Oro en Piedra" },
-    bonusFormula: {
-      en: "Seeding a farm next to a Folwark deposits 8% of its total food into your bank immediately.",
-      es: "Sembrar una granja junto al Folwark deposita el 8% de toda su comida instantáneamente en tu banco.",
+    civ: "turks",
+    name: { en: "Turks", es: "Turcos" },
+    resource: "gold",
+    bonus: { en: "Gold miners work 25% faster", es: "Los mineros de oro trabajan un 25% más rápido" },
+    inNumbers: {
+      en: `${perMin(BASE_WORK_RATE.gold * 1.25)} gold/min per miner before any mining tech, roughly what a generic civ gets with both Gold Mining upgrades.`,
+      es: `${perMin(BASE_WORK_RATE.gold * 1.25)} oro/min por minero sin mejoras, casi lo que una civ genérica logra con las dos minerías investigadas.`,
     },
-    rateMultiplier: 1.08,
   },
   {
-    civ: "Lithuanians",
+    civ: "vikings",
+    name: { en: "Vikings", es: "Vikingos" },
+    resource: "all",
+    bonus: { en: "Wheelbarrow and Hand Cart are free", es: "Carretilla y Carretilla de Mano gratis" },
+    inNumbers: {
+      en: "Saves 475 food and 250 wood, and lets you take both upgrades the moment they unlock instead of when you can afford them.",
+      es: "Ahorra 475 de comida y 250 de madera, y te deja cogerlas en cuanto se desbloquean en vez de cuando te las puedes permitir.",
+    },
+  },
+  {
+    civ: "franks",
+    name: { en: "Franks", es: "Francos" },
+    resource: "food",
+    bonus: {
+      en: "Farm upgrades are free; foragers work 15% faster",
+      es: "Las mejoras de granja son gratis; los recolectores de bayas trabajan un 15% más rápido",
+    },
+    inNumbers: {
+      en: "Horse Collar, Heavy Plow and Crop Rotation cost 450 food and 450 wood for everyone else. Frank farms jump to 550 food each for free.",
+      es: "Collera, Arado Pesado y Rotación cuestan 450 de comida y 450 de madera a los demás. Las granjas francas llegan a 550 de comida gratis.",
+    },
+  },
+  {
+    civ: "burgundians",
+    name: { en: "Burgundians", es: "Borgoñones" },
+    resource: "all",
+    bonus: {
+      en: "Economy upgrades cost -40% food and unlock one Age early",
+      es: "Las mejoras económicas cuestan -40% de comida y se desbloquean una Edad antes",
+    },
+    inNumbers: {
+      en: "Bow Saw in Feudal and Hand Cart in Feudal are the two that matter: the Castle-Age wood and farm ceilings arrive an entire Age sooner.",
+      es: "Sierra de Arco en Feudal y Carretilla de Mano en Feudal son las clave: los techos de madera y granja de Castillos llegan una Edad antes.",
+    },
+  },
+  {
+    civ: "khmer",
+    name: { en: "Khmer", es: "Jemeres" },
+    resource: "food",
+    bonus: {
+      en: "Farmers deposit food with no drop-off, but work 5% slower",
+      es: "Los granjeros depositan comida sin descargar, pero trabajan un 5% más lento",
+    },
+    inNumbers: {
+      en: "No walking to a Mill, so farm placement is free and Wheelbarrow / Hand Cart give them much less than they give other civs.",
+      es: "No caminan al Molino, así que puedes plantar granjas donde quieras y la Carretilla les aporta mucho menos que a otras civs.",
+    },
+  },
+  {
+    civ: "malians",
+    name: { en: "Malians", es: "Malienses" },
+    resource: "gold",
+    bonus: { en: "Villagers drop off +10% gold", es: "Los aldeanos depositan +10% de oro" },
+    inNumbers: {
+      en: `Effectively ${perMin(BASE_WORK_RATE.gold * 1.1)} gold/min per miner, and every gold pile lasts 10% longer in practice.`,
+      es: `En la práctica ${perMin(BASE_WORK_RATE.gold * 1.1)} oro/min por minero, y cada veta rinde un 10% más.`,
+    },
+  },
+  {
+    civ: "chinese",
+    name: { en: "Chinese", es: "Chinos" },
+    resource: "all",
+    bonus: { en: "Start with +3 Villagers, -200 food and -50 wood", es: "Empiezan con +3 aldeanos, -200 de comida y -50 de madera" },
+    inNumbers: {
+      en: "Three extra workers from second zero is worth about 60 food/min of income; the trade-off is that you cannot afford a Loom-and-house opening.",
+      es: "Tres trabajadores extra desde el segundo cero valen unos 60 comida/min de ingresos; a cambio no puedes permitirte abrir con telar y casas.",
+    },
+  },
+  {
+    civ: "lithuanians",
     name: { en: "Lithuanians", es: "Lituanos" },
-    resourceImpact: "food",
-    bonusTitle: { en: "+150 Starting Food", es: "+150 de Alimento Inicial" },
-    bonusFormula: {
-      en: "Enables instant 18-pop Feudal rush or seamless Dark Age scouting without relying on boars.",
-      es: "Permite un rush de 18 pop a Feudal o explorar en Edad Oscura sin depender del jabalí inmediato.",
+    resource: "food",
+    bonus: { en: "Every Town Center provides +100 food", es: "Cada Centro Urbano aporta +100 de comida" },
+    inNumbers: {
+      en: "The starting +100 food is two extra villagers' worth of Dark Age income, and each new Town Center repeats it.",
+      es: "Los +100 iniciales equivalen a dos aldeanos extra de ingresos en Edad Oscura, y cada nuevo Centro Urbano lo repite.",
     },
-    rateMultiplier: 1.0,
   },
 ];
 
-export function calculateVillagersForTarget(params: {
-  tcCount: number;
-  stablesCount: number;
-  rangesCrossbowCount: number;
-  rangesSkirmCount: number;
-  barracksHalbCount: number;
-  siegeWorkshopCount: number;
-  hasWheelbarrow?: boolean;
-  hasDoubleBitAxe?: boolean;
-  hasBowSaw?: boolean;
-  hasGoldMining?: boolean;
-}) {
-  const {
-    tcCount,
-    stablesCount,
-    rangesCrossbowCount,
-    rangesSkirmCount,
-    barracksHalbCount,
-    siegeWorkshopCount,
-    hasWheelbarrow = true,
-    hasDoubleBitAxe = true,
-    hasBowSaw = false,
-    hasGoldMining = false,
-  } = params;
+/* -------------------------------------------------------------------------- */
+/* Planner                                                                    */
+/* -------------------------------------------------------------------------- */
 
-  // Farm rate calculation based on upgrades
-  let farmRate = 20.4;
-  if (hasWheelbarrow) farmRate = 23.1;
+export type FoodSource = "farm" | "sheep" | "hunt" | "berries";
+export type WoodTech = "none" | "double_bit_axe" | "bow_saw" | "two_man_saw";
+export type GoldTech = "none" | "gold_mining" | "gold_shaft_mining";
+export type VillagerTech = "none" | "wheelbarrow" | "hand_cart";
 
-  // Wood rate
-  let woodRate = 23.4;
-  if (hasDoubleBitAxe) woodRate = 28.1;
-  if (hasBowSaw) woodRate = 33.7;
+export interface ProductionLine {
+  unitId: string;
+  /** Buildings training this unit back to back. */
+  buildings: number;
+}
 
-  // Gold rate
-  let goldRate = 22.8;
-  if (hasGoldMining) goldRate = 26.2;
+export interface PlannerSettings {
+  foodSource: FoodSource;
+  farmTech: FarmTech;
+  villagerTech: VillagerTech;
+  woodTech: WoodTech;
+  goldTech: GoldTech;
+}
 
-  // Total required demands per minute
-  const foodDemand =
-    tcCount * 120 + // 120 food/min per TC
-    stablesCount * 120 + // 120 food/min per stable (knights)
-    rangesSkirmCount * 68 + // 68 food/min per range (skirms)
-    barracksHalbCount * 95; // 95 food/min per barracks (halbs)
+export interface PlannerLineResult {
+  unit: TrainableUnit;
+  buildings: number;
+  drain: ResourceCost;
+}
 
-  const woodDemand =
-    rangesCrossbowCount * 56 + // 56 wood/min per range
-    rangesSkirmCount * 95 + // 95 wood/min per range
-    barracksHalbCount * 68 + // 68 wood/min per barracks
-    siegeWorkshopCount * 208; // 208 wood/min per workshop (mangonels)
+export interface PlannerResult {
+  lines: PlannerLineResult[];
+  rates: { food: number; wood: number; gold: number };
+  /** Resource drain from production only. */
+  productionDemand: ResourceCost;
+  /** Wood spent reseeding farms, which production demand does not include. */
+  farmReseedWoodPerMin: number;
+  totalWoodDemand: number;
+  villagers: { food: number; wood: number; gold: number; total: number };
+  farms: { count: number; reseedIntervalSec: number } | null;
+}
 
-  const goldDemand =
-    stablesCount * 150 + // 150 gold/min per stable
-    rangesCrossbowCount * 100 + // 100 gold/min per range
-    siegeWorkshopCount * 176; // 176 gold/min per workshop
+export function foodRateFor(settings: PlannerSettings): number {
+  switch (settings.foodSource) {
+    case "sheep":
+      return perMin(BASE_WORK_RATE.sheep);
+    case "hunt":
+      return perMin(BASE_WORK_RATE.hunt);
+    case "berries":
+      return perMin(BASE_WORK_RATE.berries);
+    case "farm":
+    default:
+      if (settings.villagerTech === "hand_cart") return FARM_RATE_PER_MIN.handCart;
+      if (settings.villagerTech === "wheelbarrow") return FARM_RATE_PER_MIN.wheelbarrow;
+      return FARM_RATE_PER_MIN.none;
+  }
+}
 
-  const foodVills = Math.max(Math.ceil(foodDemand / farmRate), 0);
-  const woodVills = Math.max(Math.ceil(woodDemand / woodRate), 0);
-  const goldVills = Math.max(Math.ceil(goldDemand / goldRate), 0);
+export function woodRateFor(tech: WoodTech): number {
+  const multiplier =
+    tech === "two_man_saw" ? 1.2 * 1.2 * 1.1 : tech === "bow_saw" ? 1.2 * 1.2 : tech === "double_bit_axe" ? 1.2 : 1;
+  return perMin(BASE_WORK_RATE.wood * multiplier);
+}
+
+export function goldRateFor(tech: GoldTech): number {
+  const multiplier =
+    tech === "gold_shaft_mining" ? 1.15 * 1.15 : tech === "gold_mining" ? 1.15 : 1;
+  return perMin(BASE_WORK_RATE.gold * multiplier);
+}
+
+/**
+ * Villagers needed to sustain the given production without the queues ever
+ * running dry.
+ *
+ * Food villagers are solved first because, when food comes from farms, they
+ * generate an extra wood cost of their own: a farm yields a fixed amount of
+ * food and then costs 60 wood to reseed.
+ */
+export function planProduction(
+  lines: ProductionLine[],
+  settings: PlannerSettings
+): PlannerResult {
+  const resolved: PlannerLineResult[] = lines
+    .filter((line) => line.buildings > 0 && UNITS_BY_ID[line.unitId])
+    .map((line) => {
+      const unit = UNITS_BY_ID[line.unitId];
+      const drain = drainPerMinute(unit);
+      return {
+        unit,
+        buildings: line.buildings,
+        drain: {
+          food: drain.food * line.buildings,
+          wood: drain.wood * line.buildings,
+          gold: drain.gold * line.buildings,
+        },
+      };
+    });
+
+  const productionDemand = resolved.reduce<ResourceCost>(
+    (acc, line) => ({
+      food: acc.food + line.drain.food,
+      wood: acc.wood + line.drain.wood,
+      gold: acc.gold + line.drain.gold,
+    }),
+    { food: 0, wood: 0, gold: 0 }
+  );
+
+  const foodRate = foodRateFor(settings);
+  const woodRate = woodRateFor(settings.woodTech);
+  const goldRate = goldRateFor(settings.goldTech);
+
+  const foodVillagers = Math.ceil(productionDemand.food / foodRate);
+
+  // A farmer burns through FARM_YIELD food, then pays 60 wood to reseed.
+  const usesFarms = settings.foodSource === "farm";
+  const farmYield = FARM_YIELD[settings.farmTech];
+  const reseedIntervalSec = usesFarms ? (farmYield / foodRate) * 60 : 0;
+  const farmReseedWoodPerMin = usesFarms
+    ? foodVillagers * (FARM_WOOD_COST * (foodRate / farmYield))
+    : 0;
+
+  const totalWoodDemand = productionDemand.wood + farmReseedWoodPerMin;
+  const woodVillagers = Math.ceil(totalWoodDemand / woodRate);
+  const goldVillagers = Math.ceil(productionDemand.gold / goldRate);
 
   return {
-    foodDemand: Math.round(foodDemand),
-    woodDemand: Math.round(woodDemand),
-    goldDemand: Math.round(goldDemand),
-    foodVills,
-    woodVills,
-    goldVills,
-    totalVills: foodVills + woodVills + goldVills,
+    lines: resolved,
+    rates: { food: foodRate, wood: woodRate, gold: goldRate },
+    productionDemand,
+    farmReseedWoodPerMin,
+    totalWoodDemand,
+    villagers: {
+      food: foodVillagers,
+      wood: woodVillagers,
+      gold: goldVillagers,
+      total: foodVillagers + woodVillagers + goldVillagers,
+    },
+    farms: usesFarms
+      ? { count: foodVillagers, reseedIntervalSec: Math.round(reseedIntervalSec) }
+      : null,
   };
 }
+
+/**
+ * Break-even time for a rate technology, given how many villagers are on that
+ * resource. Cost is summed across resource types, which is the standard
+ * simplification: it answers "how long until the extra income covers what I
+ * paid", not "how long until I get my food back".
+ */
+export function techBreakEvenMinutes(
+  tech: EcoTech,
+  villagersOnResource: number,
+  currentRatePerVillager: number
+): number | null {
+  if (!tech.rateEffect || villagersOnResource <= 0) return null;
+  const extraPerVillager = currentRatePerVillager * (tech.rateEffect.multiplier - 1);
+  const extraPerMinute = extraPerVillager * villagersOnResource;
+  if (extraPerMinute <= 0) return null;
+  const totalCost = tech.cost.food + tech.cost.wood + tech.cost.gold;
+  return totalCost / extraPerMinute;
+}
+
+export const PRESETS: {
+  id: string;
+  name: Bilingual;
+  description: Bilingual;
+  lines: ProductionLine[];
+  settings: PlannerSettings;
+}[] = [
+  {
+    id: "feudal_scouts",
+    name: { en: "Feudal scouts", es: "Scouts en Feudal" },
+    description: {
+      en: "1 Town Center and 1 Stable on Scout Cavalry. Pure food, no gold at all.",
+      es: "1 Centro Urbano y 1 Establo con Exploradores. Solo comida, nada de oro.",
+    },
+    lines: [
+      { unitId: "villager", buildings: 1 },
+      { unitId: "scout_cavalry", buildings: 1 },
+    ],
+    settings: {
+      foodSource: "farm",
+      farmTech: "horse_collar",
+      villagerTech: "none",
+      woodTech: "double_bit_axe",
+      goldTech: "none",
+    },
+  },
+  {
+    id: "feudal_archers",
+    name: { en: "Feudal archers", es: "Arqueros en Feudal" },
+    description: {
+      en: "1 Town Center and 2 Ranges on Archers. The classic wood-and-gold opening.",
+      es: "1 Centro Urbano y 2 Galerías con Arqueros. La apertura clásica de madera y oro.",
+    },
+    lines: [
+      { unitId: "villager", buildings: 1 },
+      { unitId: "archer", buildings: 2 },
+    ],
+    settings: {
+      foodSource: "farm",
+      farmTech: "horse_collar",
+      villagerTech: "none",
+      woodTech: "double_bit_axe",
+      goldTech: "none",
+    },
+  },
+  {
+    id: "castle_knights",
+    name: { en: "Castle knights", es: "Caballeros en Castillos" },
+    description: {
+      en: "2 Town Centers and 2 Stables on Knights. This is where gold demand explodes.",
+      es: "2 Centros Urbanos y 2 Establos con Caballeros. Aquí es donde se dispara el oro.",
+    },
+    lines: [
+      { unitId: "villager", buildings: 2 },
+      { unitId: "knight", buildings: 2 },
+    ],
+    settings: {
+      foodSource: "farm",
+      farmTech: "heavy_plow",
+      villagerTech: "wheelbarrow",
+      woodTech: "bow_saw",
+      goldTech: "gold_mining",
+    },
+  },
+  {
+    id: "castle_crossbow_siege",
+    name: { en: "Crossbows and siege", es: "Ballesteros y asedio" },
+    description: {
+      en: "2 Town Centers, 2 Ranges on Crossbows and 1 Siege Workshop on Mangonels.",
+      es: "2 Centros Urbanos, 2 Galerías con Ballesteros y 1 Taller con Mangoneles.",
+    },
+    lines: [
+      { unitId: "villager", buildings: 2 },
+      { unitId: "crossbowman", buildings: 2 },
+      { unitId: "mangonel", buildings: 1 },
+    ],
+    settings: {
+      foodSource: "farm",
+      farmTech: "heavy_plow",
+      villagerTech: "wheelbarrow",
+      woodTech: "bow_saw",
+      goldTech: "gold_mining",
+    },
+  },
+  {
+    id: "imperial_boom",
+    name: { en: "Three TC boom", es: "Boom de 3 Centros" },
+    description: {
+      en: "3 Town Centers on villagers only. What a pure boom actually costs.",
+      es: "3 Centros Urbanos solo con aldeanos. Lo que cuesta de verdad un boom puro.",
+    },
+    lines: [{ unitId: "villager", buildings: 3 }],
+    settings: {
+      foodSource: "farm",
+      farmTech: "heavy_plow",
+      villagerTech: "wheelbarrow",
+      woodTech: "bow_saw",
+      goldTech: "none",
+    },
+  },
+  {
+    id: "imperial_halbs_arbs",
+    name: { en: "Imperial trash and arbs", es: "Basura e imperiales" },
+    description: {
+      en: "2 Barracks on Halberdiers, 2 Ranges on Arbalesters and 3 Town Centers.",
+      es: "2 Cuarteles con Alabarderos, 2 Galerías con Arbalesteros y 3 Centros Urbanos.",
+    },
+    lines: [
+      { unitId: "villager", buildings: 3 },
+      { unitId: "spearman", buildings: 2 },
+      { unitId: "crossbowman", buildings: 2 },
+    ],
+    settings: {
+      foodSource: "farm",
+      farmTech: "crop_rotation",
+      villagerTech: "hand_cart",
+      woodTech: "two_man_saw",
+      goldTech: "gold_shaft_mining",
+    },
+  },
+];

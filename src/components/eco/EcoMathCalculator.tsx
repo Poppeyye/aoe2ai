@@ -1,639 +1,858 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
+import { Plus, Minus, X, Info } from "lucide-react";
 import {
-  Calculator,
-  Users,
-  TrendingUp,
-  Award,
-  Zap,
-  Sparkles,
-  Info,
-  Check,
-  Clock,
-  ArrowRight,
-  Shield,
-  Layers,
-  ChevronRight,
-  RotateCcw,
-} from "lucide-react";
-import {
-  GATHERING_RATES,
-  ECO_UPGRADES,
+  UNITS,
+  UNITS_BY_ID,
+  GATHER_RATES,
+  ECO_TECHS,
   CIV_ECO_BONUSES,
-  calculateVillagersForTarget,
-  type GatheringRate,
-  type EcoUpgradeInfo,
+  FARM_YIELD,
+  FARM_TECH_LABEL,
+  FARM_WOOD_COST,
+  woodPer1000Food,
+  planProduction,
+  techBreakEvenMinutes,
+  drainPerMinute,
+  PRESETS,
+  type FarmTech,
+  type FoodSource,
+  type GoldTech,
+  type PlannerSettings,
+  type ProductionLine,
+  type ResourceKey,
+  type VillagerTech,
+  type WoodTech,
 } from "@/lib/aoe2/eco-math";
 import { cn } from "@/lib/utils";
 
-interface EcoMathCalculatorProps {
-  locale: string;
-}
+const TABS = [
+  { id: "planner", en: "Production planner", es: "Planificador" },
+  { id: "rates", en: "Gather rates", es: "Tasas de recolección" },
+  { id: "farms", en: "Farm economics", es: "Economía de granjas" },
+  { id: "civs", en: "Civ bonuses", es: "Bonos de civilización" },
+] as const;
 
-export default function EcoMathCalculator({ locale }: EcoMathCalculatorProps) {
+type TabId = (typeof TABS)[number]["id"];
+
+const DEFAULT_PRESET = PRESETS[2];
+
+export default function EcoMathCalculator({ locale }: { locale: string }) {
   const isEs = locale === "es";
+  const t = (en: string, es: string) => (isEs ? es : en);
 
-  const [activeTab, setActiveTab] = useState<"balancer" | "rates" | "upgrades" | "civs">("balancer");
+  const [tab, setTab] = useState<TabId>("planner");
+  const [lines, setLines] = useState<ProductionLine[]>(DEFAULT_PRESET.lines);
+  const [settings, setSettings] = useState<PlannerSettings>(DEFAULT_PRESET.settings);
+  const [activePreset, setActivePreset] = useState<string | null>(DEFAULT_PRESET.id);
 
-  // Macro target state
-  const [tcCount, setTcCount] = useState(2);
-  const [stablesCount, setStablesCount] = useState(1);
-  const [crossbowCount, setCrossbowCount] = useState(0);
-  const [skirmCount, setSkirmCount] = useState(0);
-  const [halbCount, setHalbCount] = useState(0);
-  const [siegeCount, setSiegeCount] = useState(0);
+  const result = useMemo(() => planProduction(lines, settings), [lines, settings]);
 
-  // Upgrades active
-  const [hasDoubleBitAxe, setHasDoubleBitAxe] = useState(true);
-  const [hasWheelbarrow, setHasWheelbarrow] = useState(true);
-  const [hasBowSaw, setHasBowSaw] = useState(false);
-  const [hasGoldMining, setHasGoldMining] = useState(false);
-
-  // Resource filter for rates tab
-  const [resourceFilter, setResourceFilter] = useState<"all" | "food" | "wood" | "gold" | "stone">("all");
-
-  const calculation = useMemo(() => {
-    return calculateVillagersForTarget({
-      tcCount,
-      stablesCount,
-      rangesCrossbowCount: crossbowCount,
-      rangesSkirmCount: skirmCount,
-      barracksHalbCount: halbCount,
-      siegeWorkshopCount: siegeCount,
-      hasWheelbarrow,
-      hasDoubleBitAxe,
-      hasBowSaw,
-      hasGoldMining,
-    });
-  }, [
-    tcCount,
-    stablesCount,
-    crossbowCount,
-    skirmCount,
-    halbCount,
-    siegeCount,
-    hasWheelbarrow,
-    hasDoubleBitAxe,
-    hasBowSaw,
-    hasGoldMining,
-  ]);
-
-  const resetPresets = (presetType: "1tc_scouts" | "2tc_knights" | "3tc_boom" | "2range_xbow") => {
-    if (presetType === "1tc_scouts") {
-      setTcCount(1);
-      setStablesCount(1);
-      setCrossbowCount(0);
-      setSkirmCount(0);
-      setHalbCount(0);
-      setSiegeCount(0);
-      setHasWheelbarrow(false);
-      setHasDoubleBitAxe(true);
-      setHasBowSaw(false);
-      setHasGoldMining(false);
-    } else if (presetType === "2tc_knights") {
-      setTcCount(2);
-      setStablesCount(2);
-      setCrossbowCount(0);
-      setSkirmCount(0);
-      setHalbCount(0);
-      setSiegeCount(0);
-      setHasWheelbarrow(true);
-      setHasDoubleBitAxe(true);
-      setHasBowSaw(true);
-      setHasGoldMining(true);
-    } else if (presetType === "3tc_boom") {
-      setTcCount(3);
-      setStablesCount(0);
-      setCrossbowCount(0);
-      setSkirmCount(0);
-      setHalbCount(0);
-      setSiegeCount(0);
-      setHasWheelbarrow(true);
-      setHasDoubleBitAxe(true);
-      setHasBowSaw(true);
-      setHasGoldMining(false);
-    } else if (presetType === "2range_xbow") {
-      setTcCount(1);
-      setStablesCount(0);
-      setCrossbowCount(2);
-      setSkirmCount(0);
-      setHalbCount(0);
-      setSiegeCount(1);
-      setHasWheelbarrow(true);
-      setHasDoubleBitAxe(true);
-      setHasBowSaw(false);
-      setHasGoldMining(true);
-    }
+  const applyPreset = (id: string) => {
+    const preset = PRESETS.find((p) => p.id === id);
+    if (!preset) return;
+    setLines(preset.lines.map((l) => ({ ...l })));
+    setSettings({ ...preset.settings });
+    setActivePreset(preset.id);
   };
 
-  const filteredRates = useMemo(() => {
-    if (resourceFilter === "all") return GATHERING_RATES;
-    return GATHERING_RATES.filter((r) => r.resource === resourceFilter);
-  }, [resourceFilter]);
+  const mutate = (next: ProductionLine[]) => {
+    setLines(next);
+    setActivePreset(null);
+  };
+
+  const setBuildings = (unitId: string, delta: number) => {
+    mutate(
+      lines
+        .map((l) =>
+          l.unitId === unitId ? { ...l, buildings: Math.max(0, Math.min(6, l.buildings + delta)) } : l
+        )
+        .filter((l) => l.buildings > 0)
+    );
+  };
+
+  const addUnit = (unitId: string) => {
+    if (lines.some((l) => l.unitId === unitId)) {
+      setBuildings(unitId, 1);
+      return;
+    }
+    mutate([...lines, { unitId, buildings: 1 }]);
+  };
+
+  const removeUnit = (unitId: string) => mutate(lines.filter((l) => l.unitId !== unitId));
+
+  const patchSettings = (patch: Partial<PlannerSettings>) => {
+    setSettings((s) => ({ ...s, ...patch }));
+    setActivePreset(null);
+  };
 
   return (
-    <div className="card !p-6 border-aoe-accent/40 bg-gradient-to-br from-slate-900/95 via-aoe-card to-slate-950/95 relative overflow-hidden shadow-2xl">
-      {/* Background ambient lighting */}
-      <div className="absolute top-0 right-0 w-80 h-80 bg-aoe-accent/5 rounded-full blur-3xl pointer-events-none -z-10" />
-
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-4 border-b border-aoe-border/80">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded bg-aoe-accent/20 text-aoe-accent border border-aoe-accent/30 flex items-center gap-1.5">
-              <Calculator className="w-3.5 h-3.5" />
-              {isEs ? "Motor de Matemáticas & Macro" : "AoE2 Economy & Math Engine"}
-            </span>
-          </div>
-          <h2 className="text-2xl font-medieval font-bold gold-gradient">
-            {isEs ? "Eficiencia Económica & Balance de Aldeanos" : "Economy Efficiency & Macro Balancer"}
-          </h2>
-          <p className="text-xs text-gray-400">
-            {isEs
-              ? "Calcula exactamente cuántos aldeanos necesitas en comida, madera y oro para no parar la producción."
-              : "Calculate exact villager counts on food, wood, and gold to sustain non-stop production."}
-          </p>
-        </div>
-
-        {/* Section Navigation Tabs */}
-        <div className="flex items-center gap-1 bg-aoe-dark p-1 rounded-xl border border-aoe-border shrink-0 flex-wrap">
-          {[
-            { id: "balancer", label: isEs ? "Calculadora Macro" : "Macro Balancer", icon: Users },
-            { id: "rates", label: isEs ? "Tasas de Recolección" : "Gathering Rates", icon: TrendingUp },
-            { id: "upgrades", label: isEs ? "Retorno Mejoras (ROI)" : "Tech ROI & Payoff", icon: Clock },
-            { id: "civs", label: isEs ? "Bonuses de Civs" : "Civ Eco Bonuses", icon: Award },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={cn(
-                  "px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all",
-                  activeTab === tab.id
-                    ? "bg-aoe-accent text-aoe-dark shadow-md"
-                    : "text-gray-400 hover:text-white"
-                )}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
+    <div className="space-y-6">
+      <div className="flex items-center gap-1 p-1 rounded-xl bg-aoe-card border border-aoe-border overflow-x-auto">
+        {TABS.map((item) => (
+          <button
+            key={item.id}
+            onClick={() => setTab(item.id)}
+            className={cn(
+              "px-3.5 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors",
+              tab === item.id
+                ? "bg-aoe-accent text-aoe-dark"
+                : "text-gray-400 hover:text-white hover:bg-aoe-dark/60"
+            )}
+          >
+            {t(item.en, item.es)}
+          </button>
+        ))}
       </div>
 
-      {/* TAB 1: MACRO TARGET BALANCER */}
-      {activeTab === "balancer" && (
-        <div className="space-y-6 animate-in fade-in duration-200">
-          {/* Quick Presets */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mr-1">
-              {isEs ? "Presets Típicos:" : "Quick Setups:"}
-            </span>
-            <button
-              onClick={() => resetPresets("1tc_scouts")}
-              className="px-2.5 py-1 rounded-lg bg-aoe-dark border border-aoe-border hover:border-aoe-accent text-xs text-gray-300 hover:text-white transition-colors"
-            >
-              1 TC + 1 Establo Scouts (Feudal)
-            </button>
-            <button
-              onClick={() => resetPresets("2tc_knights")}
-              className="px-2.5 py-1 rounded-lg bg-aoe-dark border border-aoe-border hover:border-aoe-accent text-xs text-gray-300 hover:text-white transition-colors"
-            >
-              2 TCs + 2 Establos Caballeros (Castillos)
-            </button>
-            <button
-              onClick={() => resetPresets("2range_xbow")}
-              className="px-2.5 py-1 rounded-lg bg-aoe-dark border border-aoe-border hover:border-aoe-accent text-xs text-gray-300 hover:text-white transition-colors"
-            >
-              1 TC + 2 Galerías Ballestas + Mangonela
-            </button>
-            <button
-              onClick={() => resetPresets("3tc_boom")}
-              className="px-2.5 py-1 rounded-lg bg-aoe-dark border border-aoe-border hover:border-aoe-accent text-xs text-gray-300 hover:text-white transition-colors"
-            >
-              3 TCs Pure Boom (Eco pura)
-            </button>
+      {tab === "planner" && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          <div className="lg:col-span-7 space-y-4">
+            <PresetRow
+              activePreset={activePreset}
+              onSelect={applyPreset}
+              label={t("Start from a standard setup", "Empieza desde una configuración estándar")}
+              isEs={isEs}
+            />
+            <ProductionCard
+              lines={lines}
+              isEs={isEs}
+              onAdd={addUnit}
+              onRemove={removeUnit}
+              onStep={setBuildings}
+            />
+            <SettingsCard settings={settings} onChange={patchSettings} isEs={isEs} />
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Input Controls */}
-            <div className="lg:col-span-6 space-y-4">
-              <div className="card !p-4 bg-slate-900/90 border-slate-700/80 space-y-3.5">
-                <div className="text-xs font-bold uppercase text-aoe-accent tracking-wider flex items-center justify-between">
-                  <span>{isEs ? "1. Edificios de Producción Activos" : "1. Active Production Queues"}</span>
-                  <span className="text-gray-400 font-normal">{isEs ? "Cola sin parar" : "100% uptime"}</span>
-                </div>
-
-                {/* Town Centers */}
-                <div className="flex items-center justify-between text-xs py-1">
-                  <div>
-                    <span className="font-semibold text-white block">🏛️ {isEs ? "Centros Urbanos (Aldeanos)" : "Town Centers (Villagers)"}</span>
-                    <span className="text-[10px] text-gray-500">{isEs ? "50C cada 25s = 120 comida/min" : "50F every 25s = 120 food/min"}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setTcCount((c) => Math.max(c - 1, 0))}
-                      className="w-6 h-6 rounded bg-slate-800 text-gray-300 hover:bg-slate-700 flex items-center justify-center font-bold"
-                    >
-                      -
-                    </button>
-                    <span className="w-6 text-center font-bold text-white tabular-nums">{tcCount}</span>
-                    <button
-                      onClick={() => setTcCount((c) => Math.min(c + 1, 5))}
-                      className="w-6 h-6 rounded bg-slate-800 text-gray-300 hover:bg-slate-700 flex items-center justify-center font-bold"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-
-                {/* Stables Knights */}
-                <div className="flex items-center justify-between text-xs py-1 border-t border-slate-800">
-                  <div>
-                    <span className="font-semibold text-white block">🐎 {isEs ? "Establos (Caballeros)" : "Stables (Knights)"}</span>
-                    <span className="text-[10px] text-gray-500">{isEs ? "60C, 75O cada 30s" : "60F, 75G every 30s"}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setStablesCount((c) => Math.max(c - 1, 0))}
-                      className="w-6 h-6 rounded bg-slate-800 text-gray-300 hover:bg-slate-700 flex items-center justify-center font-bold"
-                    >
-                      -
-                    </button>
-                    <span className="w-6 text-center font-bold text-white tabular-nums">{stablesCount}</span>
-                    <button
-                      onClick={() => setStablesCount((c) => Math.min(c + 1, 5))}
-                      className="w-6 h-6 rounded bg-slate-800 text-gray-300 hover:bg-slate-700 flex items-center justify-center font-bold"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-
-                {/* Archery Ranges Crossbows */}
-                <div className="flex items-center justify-between text-xs py-1 border-t border-slate-800">
-                  <div>
-                    <span className="font-semibold text-white block">🏹 {isEs ? "Galerías (Ballesteros)" : "Archery Ranges (Crossbows)"}</span>
-                    <span className="text-[10px] text-gray-500">{isEs ? "25M, 45O cada 27s" : "25W, 45G every 27s"}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setCrossbowCount((c) => Math.max(c - 1, 0))}
-                      className="w-6 h-6 rounded bg-slate-800 text-gray-300 hover:bg-slate-700 flex items-center justify-center font-bold"
-                    >
-                      -
-                    </button>
-                    <span className="w-6 text-center font-bold text-white tabular-nums">{crossbowCount}</span>
-                    <button
-                      onClick={() => setCrossbowCount((c) => Math.min(c + 1, 5))}
-                      className="w-6 h-6 rounded bg-slate-800 text-gray-300 hover:bg-slate-700 flex items-center justify-center font-bold"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-
-                {/* Archery Ranges Skirmishers */}
-                <div className="flex items-center justify-between text-xs py-1 border-t border-slate-800">
-                  <div>
-                    <span className="font-semibold text-white block">🛡️ {isEs ? "Galerías (Guerrilleros)" : "Archery Ranges (Skirmishers)"}</span>
-                    <span className="text-[10px] text-gray-500">{isEs ? "25C, 35M cada 22s" : "25F, 35W every 22s"}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setSkirmCount((c) => Math.max(c - 1, 0))}
-                      className="w-6 h-6 rounded bg-slate-800 text-gray-300 hover:bg-slate-700 flex items-center justify-center font-bold"
-                    >
-                      -
-                    </button>
-                    <span className="w-6 text-center font-bold text-white tabular-nums">{skirmCount}</span>
-                    <button
-                      onClick={() => setSkirmCount((c) => Math.min(c + 1, 5))}
-                      className="w-6 h-6 rounded bg-slate-800 text-gray-300 hover:bg-slate-700 flex items-center justify-center font-bold"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-
-                {/* Barracks Halberdiers */}
-                <div className="flex items-center justify-between text-xs py-1 border-t border-slate-800">
-                  <div>
-                    <span className="font-semibold text-white block">🗡️ {isEs ? "Cuarteles (Piqueros / Alabarderos)" : "Barracks (Pikes / Halbs)"}</span>
-                    <span className="text-[10px] text-gray-500">{isEs ? "35C, 25M cada 22s" : "35F, 25W every 22s"}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setHalbCount((c) => Math.max(c - 1, 0))}
-                      className="w-6 h-6 rounded bg-slate-800 text-gray-300 hover:bg-slate-700 flex items-center justify-center font-bold"
-                    >
-                      -
-                    </button>
-                    <span className="w-6 text-center font-bold text-white tabular-nums">{halbCount}</span>
-                    <button
-                      onClick={() => setHalbCount((c) => Math.min(c + 1, 5))}
-                      className="w-6 h-6 rounded bg-slate-800 text-gray-300 hover:bg-slate-700 flex items-center justify-center font-bold"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-
-                {/* Siege Workshop */}
-                <div className="flex items-center justify-between text-xs py-1 border-t border-slate-800">
-                  <div>
-                    <span className="font-semibold text-white block">💥 {isEs ? "Talleres de Asedio (Mangonelas)" : "Siege Workshops (Mangonels)"}</span>
-                    <span className="text-[10px] text-gray-500">{isEs ? "160M, 135O cada 46s" : "160W, 135G every 46s"}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setSiegeCount((c) => Math.max(c - 1, 0))}
-                      className="w-6 h-6 rounded bg-slate-800 text-gray-300 hover:bg-slate-700 flex items-center justify-center font-bold"
-                    >
-                      -
-                    </button>
-                    <span className="w-6 text-center font-bold text-white tabular-nums">{siegeCount}</span>
-                    <button
-                      onClick={() => setSiegeCount((c) => Math.min(c + 1, 3))}
-                      className="w-6 h-6 rounded bg-slate-800 text-gray-300 hover:bg-slate-700 flex items-center justify-center font-bold"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Eco Upgrades Toggle */}
-              <div className="card !p-4 bg-slate-900/90 border-slate-700/80 space-y-2.5">
-                <div className="text-xs font-bold uppercase text-gray-300 tracking-wider mb-2">
-                  {isEs ? "2. Mejoras Económicas Activas:" : "2. Researched Eco Technologies:"}
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => setHasDoubleBitAxe(!hasDoubleBitAxe)}
-                    className={cn(
-                      "p-2 rounded-lg border text-xs text-left transition-all",
-                      hasDoubleBitAxe
-                        ? "bg-green-500/20 border-green-500/50 text-green-300 font-bold"
-                        : "bg-slate-800 border-slate-700 text-gray-500"
-                    )}
-                  >
-                    🪓 Hacha Doble (+20% M)
-                  </button>
-
-                  <button
-                    onClick={() => setHasWheelbarrow(!hasWheelbarrow)}
-                    className={cn(
-                      "p-2 rounded-lg border text-xs text-left transition-all",
-                      hasWheelbarrow
-                        ? "bg-amber-500/20 border-amber-500/50 text-amber-300 font-bold"
-                        : "bg-slate-800 border-slate-700 text-gray-500"
-                    )}
-                  >
-                    🛒 Carretilla (+13% Granja)
-                  </button>
-
-                  <button
-                    onClick={() => setHasBowSaw(!hasBowSaw)}
-                    className={cn(
-                      "p-2 rounded-lg border text-xs text-left transition-all",
-                      hasBowSaw
-                        ? "bg-green-500/20 border-green-500/50 text-green-300 font-bold"
-                        : "bg-slate-800 border-slate-700 text-gray-500"
-                    )}
-                  >
-                    🪚 Tronzador (+44% M)
-                  </button>
-
-                  <button
-                    onClick={() => setHasGoldMining(!hasGoldMining)}
-                    className={cn(
-                      "p-2 rounded-lg border text-xs text-left transition-all",
-                      hasGoldMining
-                        ? "bg-yellow-500/20 border-yellow-500/50 text-yellow-300 font-bold"
-                        : "bg-slate-800 border-slate-700 text-gray-500"
-                    )}
-                  >
-                    🪙 Minería Oro (+15% O)
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Output: Exact Villagers Balance Card */}
-            <div className="lg:col-span-6 space-y-4 flex flex-col justify-between">
-              <div className="card !p-6 bg-gradient-to-br from-aoe-accent/10 via-aoe-card to-slate-950 border-aoe-accent/50 space-y-5 shadow-xl">
-                <div>
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-aoe-accent mb-1">
-                    {isEs ? "DISTRIBUCIÓN ÓPTIMA DE MACRO" : "REQUIRED MACRO ALLOCATION"}
-                  </div>
-                  <h3 className="text-xl font-bold text-white font-medieval">
-                    {isEs ? "Aldeanos Necesarios para Producción Continua" : "Villagers for 100% Production Uptime"}
-                  </h3>
-                  <p className="text-xs text-gray-300 mt-1">
-                    {isEs
-                      ? "Con esta asignación nunca te quedarás sin recursos para encolar unidades."
-                      : "With this villager balance, your production queues will never starve."}
-                  </p>
-                </div>
-
-                {/* 4 Stat Boxes */}
-                <div className="grid grid-cols-2 gap-3">
-                  {/* Food */}
-                  <div className="bg-aoe-dark/90 p-3.5 rounded-xl border border-amber-500/30 text-center">
-                    <div className="text-xs text-amber-400 font-bold uppercase mb-0.5">🌾 {isEs ? "Granjas (Comida)" : "Farms (Food)"}</div>
-                    <div className="text-3xl font-bold text-white tabular-nums">{calculation.foodVills}</div>
-                    <div className="text-[11px] text-gray-400 font-mono mt-0.5">{calculation.foodDemand} {isEs ? "comida/min" : "food/min"}</div>
-                  </div>
-
-                  {/* Wood */}
-                  <div className="bg-aoe-dark/90 p-3.5 rounded-xl border border-green-500/30 text-center">
-                    <div className="text-xs text-green-400 font-bold uppercase mb-0.5">🌲 {isEs ? "Leñadores (Madera)" : "Lumberjacks (Wood)"}</div>
-                    <div className="text-3xl font-bold text-white tabular-nums">{calculation.woodVills}</div>
-                    <div className="text-[11px] text-gray-400 font-mono mt-0.5">{calculation.woodDemand} {isEs ? "madera/min" : "wood/min"}</div>
-                  </div>
-
-                  {/* Gold */}
-                  <div className="bg-aoe-dark/90 p-3.5 rounded-xl border border-yellow-500/30 text-center">
-                    <div className="text-xs text-yellow-400 font-bold uppercase mb-0.5">🪙 {isEs ? "Mineros (Oro)" : "Miners (Gold)"}</div>
-                    <div className="text-3xl font-bold text-white tabular-nums">{calculation.goldVills}</div>
-                    <div className="text-[11px] text-gray-400 font-mono mt-0.5">{calculation.goldDemand} {isEs ? "oro/min" : "gold/min"}</div>
-                  </div>
-
-                  {/* Total Eco */}
-                  <div className="bg-aoe-dark/90 p-3.5 rounded-xl border border-aoe-accent/50 text-center flex flex-col justify-center">
-                    <div className="text-xs text-aoe-accent font-bold uppercase mb-0.5">👥 {isEs ? "Total Población Eco" : "Total Eco Population"}</div>
-                    <div className="text-3xl font-bold text-aoe-accent tabular-nums">{calculation.totalVills}</div>
-                    <div className="text-[11px] text-gray-400 font-mono mt-0.5">{isEs ? "aldeanos activos" : "active gatherers"}</div>
-                  </div>
-                </div>
-
-                {/* Golden Rule advice */}
-                <div className="p-3.5 rounded-lg bg-aoe-dark/80 border border-aoe-border text-xs text-gray-300 leading-relaxed">
-                  💡 <strong>{isEs ? "Regla de Oro en 1v1:" : "Pro Ladder Rule:"}</strong>{" "}
-                  {isEs
-                    ? `Cada Centro Urbano requiere 6 granjas fijas para crear aldeanos sin parar. Si estás sacando Caballeros de 2 establos, necesitas 12 granjas + 14 en oro adicionales (un total de ~32 aldeanos solo para sostener esa producción).`
-                    : `Every Town Center needs 6 dedicated farms for continuous villager creation. Pumping Knights from 2 Stables requires another 12 farms + 14 miners (a baseline of ~32 villagers just to maintain production).`}
-                </div>
-              </div>
-            </div>
+          <div className="lg:col-span-5 space-y-4 lg:sticky lg:top-20">
+            <ResultCard result={result} settings={settings} isEs={isEs} />
+            <TechAdviceCard result={result} settings={settings} isEs={isEs} />
           </div>
         </div>
       )}
 
-      {/* TAB 2: GATHERING RATES BENCHMARKS */}
-      {activeTab === "rates" && (
-        <div className="space-y-4 animate-in fade-in duration-200">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <p className="text-xs text-gray-400">
-              {isEs
-                ? "Tasa real de recursos recolectados por aldeano por minuto (datos oficiales de DE):"
-                : "Real resource gather rates per villager per minute (official DE data):"}
-            </p>
+      {tab === "rates" && <RatesTab isEs={isEs} />}
+      {tab === "farms" && <FarmsTab isEs={isEs} />}
+      {tab === "civs" && <CivsTab isEs={isEs} />}
+    </div>
+  );
+}
 
-            <div className="flex gap-1.5">
-              {(["all", "food", "wood", "gold", "stone"] as const).map((r) => (
+/* -------------------------------------------------------------------------- */
+
+function PresetRow({
+  activePreset,
+  onSelect,
+  label,
+  isEs,
+}: {
+  activePreset: string | null;
+  onSelect: (id: string) => void;
+  label: string;
+  isEs: boolean;
+}) {
+  return (
+    <div className="card !p-4">
+      <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">{label}</div>
+      <div className="flex flex-wrap gap-2">
+        {PRESETS.map((preset) => (
+          <button
+            key={preset.id}
+            onClick={() => onSelect(preset.id)}
+            title={isEs ? preset.description.es : preset.description.en}
+            className={cn(
+              "px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors",
+              activePreset === preset.id
+                ? "border-aoe-accent/60 bg-aoe-accent/10 text-aoe-accent"
+                : "border-aoe-border bg-aoe-dark text-gray-400 hover:text-white hover:border-gray-600"
+            )}
+          >
+            {isEs ? preset.name.es : preset.name.en}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ProductionCard({
+  lines,
+  isEs,
+  onAdd,
+  onRemove,
+  onStep,
+}: {
+  lines: ProductionLine[];
+  isEs: boolean;
+  onAdd: (unitId: string) => void;
+  onRemove: (unitId: string) => void;
+  onStep: (unitId: string, delta: number) => void;
+}) {
+  const t = (en: string, es: string) => (isEs ? es : en);
+  const activeIds = new Set(lines.map((l) => l.unitId));
+  const available = UNITS.filter((u) => !activeIds.has(u.id));
+
+  return (
+    <div className="card !p-5">
+      <div className="flex items-baseline justify-between gap-3 mb-4">
+        <h3 className="font-semibold text-white">
+          {t("What you are producing", "Qué estás produciendo")}
+        </h3>
+        <span className="text-xs text-gray-500">
+          {t("buildings training non-stop", "edificios produciendo sin parar")}
+        </span>
+      </div>
+
+      <div className="space-y-2">
+        {lines.length === 0 && (
+          <p className="text-sm text-gray-500 py-4 text-center">
+            {t("Add a unit below to start.", "Añade una unidad abajo para empezar.")}
+          </p>
+        )}
+        {lines.map((line) => {
+          const unit = UNITS_BY_ID[line.unitId];
+          if (!unit) return null;
+          const drain = drainPerMinute(unit);
+          return (
+            <div
+              key={line.unitId}
+              className="flex items-center gap-3 rounded-lg border border-aoe-border bg-aoe-dark px-3 py-2.5"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium text-white truncate">
+                  {isEs ? unit.name.es : unit.name.en}
+                </div>
+                <div className="text-xs text-gray-500 font-mono">
+                  {formatCost(unit.cost, isEs)} · {unit.trainTimeSec}s ·{" "}
+                  {formatDrain(drain, isEs)}
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <StepButton onClick={() => onStep(line.unitId, -1)} label="-">
+                  <Minus className="w-3.5 h-3.5" />
+                </StepButton>
+                <span className="w-6 text-center text-sm font-semibold text-white tabular-nums">
+                  {line.buildings}
+                </span>
+                <StepButton onClick={() => onStep(line.unitId, 1)} label="+">
+                  <Plus className="w-3.5 h-3.5" />
+                </StepButton>
                 <button
-                  key={r}
-                  onClick={() => setResourceFilter(r)}
-                  className={cn(
-                    "px-2.5 py-1 rounded-md text-xs font-semibold uppercase transition-colors",
-                    resourceFilter === r
-                      ? "bg-aoe-accent text-aoe-dark font-bold"
-                      : "bg-aoe-dark text-gray-400 hover:text-white border border-aoe-border"
-                  )}
+                  onClick={() => onRemove(line.unitId)}
+                  className="ml-1 w-7 h-7 rounded-md text-gray-600 hover:text-red-400 hover:bg-red-500/10 flex items-center justify-center transition-colors"
+                  aria-label={t("Remove", "Quitar")}
                 >
-                  {r}
+                  <X className="w-3.5 h-3.5" />
                 </button>
-              ))}
+              </div>
             </div>
+          );
+        })}
+      </div>
+
+      {available.length > 0 && (
+        <div className="mt-4 pt-4 border-t border-aoe-border">
+          <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2.5">
+            {t("Add production", "Añadir producción")}
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {filteredRates.map((item) => (
-              <div
-                key={item.sourceId}
-                className="p-3.5 rounded-xl bg-aoe-dark border border-aoe-border hover:border-aoe-accent/40 transition-colors flex flex-col justify-between"
+          <div className="flex flex-wrap gap-1.5">
+            {available.map((unit) => (
+              <button
+                key={unit.id}
+                onClick={() => onAdd(unit.id)}
+                className="px-2.5 py-1 rounded-md border border-aoe-border bg-aoe-dark/60 text-xs text-gray-400 hover:text-white hover:border-aoe-accent/50 transition-colors"
               >
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="font-bold text-white text-sm">
-                      {isEs ? item.name.es : item.name.en}
-                    </span>
-                    <span
-                      className={cn(
-                        "text-xs font-bold font-mono px-2 py-0.5 rounded",
-                        item.resource === "food"
-                          ? "bg-amber-500/20 text-amber-300"
-                          : item.resource === "wood"
-                          ? "bg-green-500/20 text-green-300"
-                          : item.resource === "gold"
-                          ? "bg-yellow-500/20 text-yellow-300"
-                          : "bg-slate-700 text-gray-300"
-                      )}
-                    >
-                      {item.ratePerMin} / min
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-300 leading-relaxed">
-                    {isEs ? item.notes.es : item.notes.en}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* TAB 3: ECO UPGRADES ROI & PAYOFF TIMINGS */}
-      {activeTab === "upgrades" && (
-        <div className="space-y-4 animate-in fade-in duration-200">
-          <p className="text-xs text-gray-400">
-            {isEs
-              ? "Cuándo investigar cada mejora económica y cuántos aldeanos libres equivale su rentabilidad:"
-              : "When to research each economic technology and its exact villager output payoff:"}
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {ECO_UPGRADES.map((tech) => (
-              <div
-                key={tech.id}
-                className="card !p-4 bg-slate-900/90 border-slate-700/80 flex flex-col justify-between hover:border-aoe-accent/50 transition-all"
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold uppercase text-aoe-accent px-2 py-0.5 rounded bg-aoe-accent/10 border border-aoe-accent/20">
-                      {tech.age.toUpperCase()}
-                    </span>
-                    <span className="text-[11px] text-gray-500">{tech.researchTimeSec}s</span>
-                  </div>
-
-                  <h3 className="text-base font-bold text-white mb-1">
-                    {isEs ? tech.name.es : tech.name.en}
-                  </h3>
-                  <div className="text-[11px] text-gray-400 mb-3">{tech.building}</div>
-
-                  <div className="space-y-2 text-xs mb-4">
-                    <div className="p-2 rounded bg-aoe-dark border border-aoe-border/50 text-gray-200">
-                      <strong>{isEs ? "Efecto:" : "Effect:"}</strong> {isEs ? tech.effectDescription.es : tech.effectDescription.en}
-                    </div>
-
-                    <div className="p-2 rounded bg-green-500/10 border border-green-500/20 text-green-300 font-medium">
-                      📈 {isEs ? tech.payoffMetric.es : tech.payoffMetric.en}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-2 border-t border-slate-800 text-[11px] text-amber-300 leading-tight">
-                  🎯 <strong>{isEs ? "Regla Óptima:" : "Timing Rule:"}</strong> {isEs ? tech.bestTimingRule.es : tech.bestTimingRule.en}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* TAB 4: CIV ECO BONUSES */}
-      {activeTab === "civs" && (
-        <div className="space-y-4 animate-in fade-in duration-200">
-          <p className="text-xs text-gray-400">
-            {isEs
-              ? "Las civilizaciones con las mejores bonificaciones económicas en el meta actual:"
-              : "Civilizations with the most impactful economic bonuses in the current ranked meta:"}
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {CIV_ECO_BONUSES.map((civ) => (
-              <div
-                key={civ.civ}
-                className="card !p-4 bg-slate-900/90 border-slate-700/80 hover:border-aoe-accent/40 transition-colors flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <h3 className="text-base font-bold text-white">
-                      👑 {isEs ? civ.name.es : civ.name.en}
-                    </h3>
-                    <span className="text-xs font-bold text-aoe-accent uppercase tracking-wider">
-                      {civ.resourceImpact.toUpperCase()}
-                    </span>
-                  </div>
-
-                  <div className="text-xs font-semibold text-amber-300 mb-2">
-                    {isEs ? civ.bonusTitle.es : civ.bonusTitle.en}
-                  </div>
-
-                  <p className="text-xs text-gray-300 leading-relaxed">
-                    {isEs ? civ.bonusFormula.es : civ.bonusFormula.en}
-                  </p>
-                </div>
-              </div>
+                {isEs ? unit.name.es : unit.name.en}
+              </button>
             ))}
           </div>
         </div>
       )}
     </div>
   );
+}
+
+function StepButton({
+  onClick,
+  label,
+  children,
+}: {
+  onClick: () => void;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-label={label}
+      className="w-7 h-7 rounded-md border border-aoe-border bg-aoe-card text-gray-300 hover:text-white hover:border-gray-600 flex items-center justify-center transition-colors"
+    >
+      {children}
+    </button>
+  );
+}
+
+function SettingsCard({
+  settings,
+  onChange,
+  isEs,
+}: {
+  settings: PlannerSettings;
+  onChange: (patch: Partial<PlannerSettings>) => void;
+  isEs: boolean;
+}) {
+  const t = (en: string, es: string) => (isEs ? es : en);
+
+  return (
+    <div className="card !p-5 space-y-4">
+      <h3 className="font-semibold text-white">
+        {t("Your economy", "Tu economía")}
+      </h3>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Field label={t("Food source", "Fuente de comida")}>
+          <Select
+            value={settings.foodSource}
+            onChange={(v) => onChange({ foodSource: v as FoodSource })}
+            options={[
+              { value: "farm", label: t("Farms", "Granjas") },
+              { value: "sheep", label: t("Sheep", "Ovejas") },
+              { value: "hunt", label: t("Hunt (boar / deer)", "Caza (jabalí / ciervo)") },
+              { value: "berries", label: t("Berries", "Bayas") },
+            ]}
+          />
+        </Field>
+
+        <Field label={t("Villager techs", "Mejoras de aldeano")}>
+          <Select
+            value={settings.villagerTech}
+            onChange={(v) => onChange({ villagerTech: v as VillagerTech })}
+            options={[
+              { value: "none", label: t("None", "Ninguna") },
+              { value: "wheelbarrow", label: t("Wheelbarrow", "Carretilla") },
+              { value: "hand_cart", label: t("Hand Cart", "Carretilla de Mano") },
+            ]}
+          />
+        </Field>
+
+        <Field label={t("Farm techs", "Mejoras de granja")} disabled={settings.foodSource !== "farm"}>
+          <Select
+            value={settings.farmTech}
+            disabled={settings.foodSource !== "farm"}
+            onChange={(v) => onChange({ farmTech: v as FarmTech })}
+            options={(Object.keys(FARM_YIELD) as FarmTech[]).map((k) => ({
+              value: k,
+              label: `${isEs ? FARM_TECH_LABEL[k].es : FARM_TECH_LABEL[k].en} · ${FARM_YIELD[k]}F`,
+            }))}
+          />
+        </Field>
+
+        <Field label={t("Lumber techs", "Mejoras de madera")}>
+          <Select
+            value={settings.woodTech}
+            onChange={(v) => onChange({ woodTech: v as WoodTech })}
+            options={[
+              { value: "none", label: t("None", "Ninguna") },
+              { value: "double_bit_axe", label: t("Double-Bit Axe", "Hacha de Doble Filo") },
+              { value: "bow_saw", label: t("Bow Saw", "Sierra de Arco") },
+              { value: "two_man_saw", label: t("Two-Man Saw", "Sierra de Dos Hombres") },
+            ]}
+          />
+        </Field>
+
+        <Field label={t("Mining techs", "Mejoras de minería")}>
+          <Select
+            value={settings.goldTech}
+            onChange={(v) => onChange({ goldTech: v as GoldTech })}
+            options={[
+              { value: "none", label: t("None", "Ninguna") },
+              { value: "gold_mining", label: t("Gold Mining", "Minería de Oro") },
+              { value: "gold_shaft_mining", label: t("Gold Shaft Mining", "Minería de Pozo") },
+            ]}
+          />
+        </Field>
+      </div>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  disabled,
+  children,
+}: {
+  label: string;
+  disabled?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className={cn("block", disabled && "opacity-40")}>
+      <span className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1.5">
+        {label}
+      </span>
+      {children}
+    </label>
+  );
+}
+
+function Select({
+  value,
+  onChange,
+  options,
+  disabled,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  disabled?: boolean;
+}) {
+  return (
+    <select
+      value={value}
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full rounded-lg border border-aoe-border bg-aoe-dark px-3 py-2 text-sm text-white focus:border-aoe-accent/60 focus:outline-none disabled:cursor-not-allowed"
+    >
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function ResultCard({
+  result,
+  settings,
+  isEs,
+}: {
+  result: ReturnType<typeof planProduction>;
+  settings: PlannerSettings;
+  isEs: boolean;
+}) {
+  const t = (en: string, es: string) => (isEs ? es : en);
+  const { villagers, rates, productionDemand, farmReseedWoodPerMin, totalWoodDemand, farms } = result;
+
+  return (
+    <div className="card !p-5">
+      <div className="mb-4">
+        <h3 className="font-semibold text-white">
+          {t("Villagers needed", "Aldeanos necesarios")}
+        </h3>
+        <p className="text-xs text-gray-500 mt-0.5">
+          {t(
+            "To keep every queue running without ever going idle.",
+            "Para que ninguna cola de producción se quede sin recursos."
+          )}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 mb-3">
+        <Stat
+          label={t("Food", "Comida")}
+          value={villagers.food}
+          detail={`${Math.round(productionDemand.food)} / ${rates.food}`}
+          tone="amber"
+        />
+        <Stat
+          label={t("Wood", "Madera")}
+          value={villagers.wood}
+          detail={`${Math.round(totalWoodDemand)} / ${rates.wood}`}
+          tone="green"
+        />
+        <Stat
+          label={t("Gold", "Oro")}
+          value={villagers.gold}
+          detail={`${Math.round(productionDemand.gold)} / ${rates.gold}`}
+          tone="yellow"
+        />
+      </div>
+
+      <div className="rounded-lg border border-aoe-accent/30 bg-aoe-accent/[0.06] px-4 py-3 flex items-baseline justify-between">
+        <span className="text-sm text-gray-300">{t("Total on economy", "Total en economía")}</span>
+        <span className="text-2xl font-bold text-aoe-accent tabular-nums">{villagers.total}</span>
+      </div>
+
+      <div className="mt-4 space-y-2.5 text-xs text-gray-400">
+        {result.lines.map((line) => (
+          <div key={line.unit.id} className="flex items-baseline justify-between gap-3">
+            <span className="truncate">
+              {line.buildings}× {isEs ? line.unit.name.es : line.unit.name.en}
+            </span>
+            <span className="font-mono text-gray-500 shrink-0">{formatDrain(line.drain, isEs)}</span>
+          </div>
+        ))}
+
+        {farms && farmReseedWoodPerMin > 0 && (
+          <div className="flex items-baseline justify-between gap-3 pt-2.5 border-t border-aoe-border">
+            <span className="truncate">
+              {t("Reseeding", "Resembrado")} {farms.count} {t("farms", "granjas")}
+            </span>
+            <span className="font-mono text-gray-500 shrink-0">
+              {Math.round(farmReseedWoodPerMin)} {t("wood/min", "madera/min")}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {farms && (
+        <p className="mt-4 pt-4 border-t border-aoe-border text-xs text-gray-500 leading-relaxed flex gap-2">
+          <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+          <span>
+            {t(
+              `Each farm holds ${FARM_YIELD[settings.farmTech]} food and runs dry every ${farms.reseedIntervalSec}s, then costs ${FARM_WOOD_COST} wood to reseed. That reseeding wood is already counted above — it is the cost most players forget.`,
+              `Cada granja tiene ${FARM_YIELD[settings.farmTech]} de comida y se agota cada ${farms.reseedIntervalSec}s, y resembrarla cuesta ${FARM_WOOD_COST} de madera. Esa madera ya está contada arriba: es el coste que más se olvida.`
+            )}
+          </span>
+        </p>
+      )}
+    </div>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  detail,
+  tone,
+}: {
+  label: string;
+  value: number;
+  detail: string;
+  tone: "amber" | "green" | "yellow";
+}) {
+  const toneClass =
+    tone === "amber" ? "text-amber-400" : tone === "green" ? "text-emerald-400" : "text-yellow-400";
+  return (
+    <div className="rounded-lg border border-aoe-border bg-aoe-dark px-3 py-3 text-center">
+      <div className={cn("text-[11px] font-semibold uppercase tracking-wider mb-1", toneClass)}>
+        {label}
+      </div>
+      <div className="text-2xl font-bold text-white tabular-nums leading-none">{value}</div>
+      <div className="text-[10px] text-gray-600 font-mono mt-1.5">{detail}</div>
+    </div>
+  );
+}
+
+function TechAdviceCard({
+  result,
+  settings,
+  isEs,
+}: {
+  result: ReturnType<typeof planProduction>;
+  settings: PlannerSettings;
+  isEs: boolean;
+}) {
+  const t = (en: string, es: string) => (isEs ? es : en);
+
+  const candidates = useMemo(() => {
+    const researched = new Set<string>();
+    if (settings.woodTech === "double_bit_axe") researched.add("double_bit_axe");
+    if (settings.woodTech === "bow_saw") ["double_bit_axe", "bow_saw"].forEach((i) => researched.add(i));
+    if (settings.woodTech === "two_man_saw")
+      ["double_bit_axe", "bow_saw", "two_man_saw"].forEach((i) => researched.add(i));
+    if (settings.goldTech === "gold_mining") researched.add("gold_mining");
+    if (settings.goldTech === "gold_shaft_mining")
+      ["gold_mining", "gold_shaft_mining"].forEach((i) => researched.add(i));
+
+    const nextWood: Record<WoodTech, string | null> = {
+      none: "double_bit_axe",
+      double_bit_axe: "bow_saw",
+      bow_saw: "two_man_saw",
+      two_man_saw: null,
+    };
+    const nextGold: Record<GoldTech, string | null> = {
+      none: "gold_mining",
+      gold_mining: "gold_shaft_mining",
+      gold_shaft_mining: null,
+    };
+
+    const ids = [nextWood[settings.woodTech], nextGold[settings.goldTech]].filter(
+      (id): id is string => Boolean(id)
+    );
+
+    return ids
+      .map((id) => ECO_TECHS.find((tech) => tech.id === id))
+      .filter((tech): tech is NonNullable<typeof tech> => Boolean(tech))
+      .map((tech) => {
+        const resource = tech.rateEffect?.resource;
+        const villagers = resource === "wood" ? result.villagers.wood : result.villagers.gold;
+        const rate = resource === "wood" ? result.rates.wood : result.rates.gold;
+        const minutes = techBreakEvenMinutes(tech, villagers, rate);
+        const extra = Math.round(villagers * rate * ((tech.rateEffect?.multiplier ?? 1) - 1));
+        return { tech, minutes, extra, villagers };
+      })
+      .filter((c) => c.minutes !== null)
+      .sort((a, b) => (a.minutes ?? 0) - (b.minutes ?? 0));
+  }, [settings, result]);
+
+  if (candidates.length === 0) return null;
+
+  return (
+    <div className="card !p-5">
+      <h3 className="font-semibold text-white mb-1">
+        {t("Research next", "Investiga a continuación")}
+      </h3>
+      <p className="text-xs text-gray-500 mb-4">
+        {t(
+          "Break-even is the technology's total cost divided by the extra income it gives your current villagers.",
+          "El punto de equilibrio es el coste total de la mejora dividido entre los ingresos extra que da a tus aldeanos actuales."
+        )}
+      </p>
+
+      <div className="space-y-2.5">
+        {candidates.map(({ tech, minutes, extra, villagers }) => (
+          <div key={tech.id} className="rounded-lg border border-aoe-border bg-aoe-dark px-3.5 py-3">
+            <div className="flex items-baseline justify-between gap-3 mb-1">
+              <span className="text-sm font-medium text-white">
+                {isEs ? tech.name.es : tech.name.en}
+              </span>
+              <span className="text-xs font-mono text-emerald-400 shrink-0">
+                {minutes !== null && minutes < 60
+                  ? `${minutes.toFixed(1)} min`
+                  : t("no payback", "sin retorno")}
+              </span>
+            </div>
+            <div className="text-xs text-gray-500">
+              {formatCost(tech.cost, isEs)} ·{" "}
+              {t(
+                `+${extra}/min across ${villagers} villagers`,
+                `+${extra}/min con ${villagers} aldeanos`
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+
+const RESOURCE_FILTERS: { id: ResourceKey | "all"; en: string; es: string }[] = [
+  { id: "all", en: "All", es: "Todos" },
+  { id: "food", en: "Food", es: "Comida" },
+  { id: "wood", en: "Wood", es: "Madera" },
+  { id: "gold", en: "Gold", es: "Oro" },
+  { id: "stone", en: "Stone", es: "Piedra" },
+];
+
+function RatesTab({ isEs }: { isEs: boolean }) {
+  const t = (en: string, es: string) => (isEs ? es : en);
+  const [filter, setFilter] = useState<ResourceKey | "all">("all");
+  const rates = filter === "all" ? GATHER_RATES : GATHER_RATES.filter((r) => r.resource === filter);
+
+  return (
+    <div className="card !p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+        <div>
+          <h3 className="font-semibold text-white">
+            {t("Resources per villager per minute", "Recursos por aldeano y minuto")}
+          </h3>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {t(
+              "Villager work rates from the game data. Farms are measured rates that include walking to the drop-off.",
+              "Tasas de trabajo de los datos del juego. Las granjas son tasas medidas que incluyen el camino al depósito."
+            )}
+          </p>
+        </div>
+        <div className="flex gap-1">
+          {RESOURCE_FILTERS.map((f) => (
+            <button
+              key={f.id}
+              onClick={() => setFilter(f.id)}
+              className={cn(
+                "px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
+                filter === f.id
+                  ? "bg-aoe-accent text-aoe-dark"
+                  : "text-gray-400 hover:text-white hover:bg-aoe-dark"
+              )}
+            >
+              {t(f.en, f.es)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="divide-y divide-aoe-border">
+        {rates.map((rate) => (
+          <div key={rate.id} className="py-3 flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-white">
+                {isEs ? rate.name.es : rate.name.en}
+              </div>
+              <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                {isEs ? rate.detail.es : rate.detail.en}
+              </p>
+            </div>
+            <div className="text-right shrink-0">
+              <div className="text-sm font-semibold text-white tabular-nums">{rate.perMinute}</div>
+              <div className="text-[10px] text-gray-600 font-mono">
+                {rate.perSecond ? `${rate.perSecond}/s` : t("measured", "medido")}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FarmsTab({ isEs }: { isEs: boolean }) {
+  const t = (en: string, es: string) => (isEs ? es : en);
+  const techs: FarmTech[] = ["none", "horse_collar", "heavy_plow", "crop_rotation"];
+
+  return (
+    <div className="space-y-4">
+      <div className="card !p-5">
+        <h3 className="font-semibold text-white mb-1">
+          {t("What farm upgrades actually do", "Qué hacen realmente las mejoras de granja")}
+        </h3>
+        <p className="text-xs text-gray-500 mb-5 leading-relaxed max-w-3xl">
+          {t(
+            `Horse Collar, Heavy Plow and Crop Rotation do not make farmers gather faster. They make each farm hold more food, so you pay the ${FARM_WOOD_COST} wood reseed cost less often. That is the entire bonus, and it is why they matter more the more farms you have.`,
+            `Collera, Arado Pesado y Rotación de Cultivos no hacen que los granjeros recolecten más rápido. Hacen que cada granja aguante más comida, así pagas los ${FARM_WOOD_COST} de madera del resembrado menos veces. Ese es todo el bono, y por eso importan más cuantas más granjas tengas.`
+          )}
+        </p>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs uppercase tracking-wider text-gray-500 border-b border-aoe-border">
+                <th className="pb-2.5 font-semibold">{t("Upgrade", "Mejora")}</th>
+                <th className="pb-2.5 font-semibold text-right">{t("Food per farm", "Comida por granja")}</th>
+                <th className="pb-2.5 font-semibold text-right">
+                  {t("Wood per 1,000 food", "Madera por 1.000 de comida")}
+                </th>
+                <th className="pb-2.5 font-semibold text-right">
+                  {t("Reseed every", "Resembrado cada")}
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-aoe-border">
+              {techs.map((tech) => {
+                const yieldFood = FARM_YIELD[tech];
+                const interval = Math.round((yieldFood / 22.8) * 60);
+                return (
+                  <tr key={tech}>
+                    <td className="py-3 text-white font-medium">
+                      {isEs ? FARM_TECH_LABEL[tech].es : FARM_TECH_LABEL[tech].en}
+                    </td>
+                    <td className="py-3 text-right tabular-nums text-gray-300">{yieldFood}</td>
+                    <td className="py-3 text-right tabular-nums text-emerald-400 font-semibold">
+                      {woodPer1000Food(tech)}
+                    </td>
+                    <td className="py-3 text-right tabular-nums text-gray-500">{interval}s</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-xs text-gray-600 mt-3">
+          {t(
+            "Reseed interval assumes a farmer with Wheelbarrow (22.8 food/min).",
+            "El intervalo de resembrado asume un granjero con Carretilla (22,8 comida/min)."
+          )}
+        </p>
+      </div>
+
+      <div className="card !p-5">
+        <h3 className="font-semibold text-white mb-4">
+          {t("Economy technologies", "Mejoras económicas")}
+        </h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs uppercase tracking-wider text-gray-500 border-b border-aoe-border">
+                <th className="pb-2.5 font-semibold">{t("Technology", "Mejora")}</th>
+                <th className="pb-2.5 font-semibold">{t("Age", "Edad")}</th>
+                <th className="pb-2.5 font-semibold">{t("Cost", "Coste")}</th>
+                <th className="pb-2.5 font-semibold">{t("Effect", "Efecto")}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-aoe-border">
+              {ECO_TECHS.map((tech) => (
+                <tr key={tech.id}>
+                  <td className="py-3 pr-3 text-white font-medium whitespace-nowrap">
+                    {isEs ? tech.name.es : tech.name.en}
+                  </td>
+                  <td className="py-3 pr-3 text-gray-500 capitalize whitespace-nowrap">{tech.age}</td>
+                  <td className="py-3 pr-3 text-gray-400 font-mono text-xs whitespace-nowrap">
+                    {formatCost(tech.cost, isEs)}
+                  </td>
+                  <td className="py-3 text-gray-400 text-xs leading-relaxed">
+                    {isEs ? tech.effect.es : tech.effect.en}
+                    {tech.note && (
+                      <span className="block text-gray-600 mt-1">
+                        {isEs ? tech.note.es : tech.note.en}
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CivsTab({ isEs }: { isEs: boolean }) {
+  const t = (en: string, es: string) => (isEs ? es : en);
+  return (
+    <div className="card !p-5">
+      <h3 className="font-semibold text-white mb-1">
+        {t("Economy bonuses that change the math", "Bonos económicos que cambian los números")}
+      </h3>
+      <p className="text-xs text-gray-500 mb-5">
+        {t(
+          "Only bonuses that alter gather rates, upgrade costs or starting resources.",
+          "Solo bonos que alteran tasas de recolección, coste de mejoras o recursos iniciales."
+        )}
+      </p>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {CIV_ECO_BONUSES.map((civ) => (
+          <div key={civ.civ} className="rounded-lg border border-aoe-border bg-aoe-dark px-4 py-3.5">
+            <div className="flex items-baseline justify-between gap-2 mb-1.5">
+              <span className="text-sm font-semibold text-white">
+                {isEs ? civ.name.es : civ.name.en}
+              </span>
+              <span className="text-[10px] uppercase tracking-wider text-gray-600 font-semibold">
+                {civ.resource}
+              </span>
+            </div>
+            <div className="text-xs text-aoe-accent mb-1.5">
+              {isEs ? civ.bonus.es : civ.bonus.en}
+            </div>
+            <p className="text-xs text-gray-400 leading-relaxed">
+              {isEs ? civ.inNumbers.es : civ.inNumbers.en}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+
+function formatCost(cost: { food: number; wood: number; gold: number }, isEs: boolean): string {
+  const parts: string[] = [];
+  if (cost.food) parts.push(`${cost.food}${isEs ? "C" : "F"}`);
+  if (cost.wood) parts.push(`${cost.wood}${isEs ? "M" : "W"}`);
+  if (cost.gold) parts.push(`${cost.gold}${isEs ? "O" : "G"}`);
+  return parts.join(" ") || (isEs ? "gratis" : "free");
+}
+
+function formatDrain(drain: { food: number; wood: number; gold: number }, isEs: boolean): string {
+  const parts: string[] = [];
+  if (drain.food > 0) parts.push(`${Math.round(drain.food)}${isEs ? "C" : "F"}`);
+  if (drain.wood > 0) parts.push(`${Math.round(drain.wood)}${isEs ? "M" : "W"}`);
+  if (drain.gold > 0) parts.push(`${Math.round(drain.gold)}${isEs ? "O" : "G"}`);
+  return `${parts.join(" ")} /min`;
 }

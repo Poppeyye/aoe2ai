@@ -13,17 +13,13 @@ import {
   Shield,
   Eye,
   Tv,
-  Trophy,
-  Flame,
-  Sparkles,
+  Calculator,
 } from "lucide-react";
 import { getDictionary } from "@/i18n/getDictionary";
 import type { Locale } from "@/i18n/config";
 import { isValidLocale } from "@/i18n/config";
 import { notFound } from "next/navigation";
 import FavoritesSection from "@/components/home/FavoritesSection";
-import HeroMatchupSimulator from "@/components/home/HeroMatchupSimulator";
-import EcoMathCalculator from "@/components/eco/EcoMathCalculator";
 
 export default async function HomePage({
   params,
@@ -34,11 +30,12 @@ export default async function HomePage({
   const locale = params.locale as Locale;
   const dict = await getDictionary(locale);
   const d = dict.home;
+  const isEs = locale === "es";
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       {/* Hero */}
-      <section className="relative pt-10 pb-12 md:pt-16 md:pb-16 text-center">
+      <section className="relative pt-14 pb-16 md:pt-20 md:pb-20 text-center">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-aoe-accent/[0.03] rounded-full blur-3xl" />
           <Image
@@ -65,10 +62,10 @@ export default async function HomePage({
             <span className="gold-gradient">{d.hero_highlight}</span>{" "}
             {d.hero_post}
           </h1>
-          <p className="text-base sm:text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-8 leading-relaxed">
+          <p className="text-base sm:text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-9 leading-relaxed">
             {d.hero_subtitle}
           </p>
-          <div className="flex flex-wrap justify-center gap-4">
+          <div className="flex flex-wrap justify-center gap-3 sm:gap-4">
             <Link
               href={`/${locale}/live`}
               className="btn-primary text-base sm:text-lg inline-flex items-center gap-2 shadow-lg"
@@ -88,10 +85,10 @@ export default async function HomePage({
       </section>
 
       {/* Featured: Live Match Detection */}
-      <section className="mb-14">
+      <section className="mb-16">
         <Link
           href={`/${locale}/profile`}
-          className="group block relative overflow-hidden rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-500/[0.08] via-slate-800/80 to-slate-900/80 p-6 md:p-8 hover:border-amber-500/40 transition-all duration-300 shadow-xl"
+          className="group block relative overflow-hidden rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-500/[0.07] via-aoe-card to-aoe-card p-6 md:p-8 hover:border-amber-500/40 transition-colors"
         >
           <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/[0.04] rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
           <div className="relative flex flex-col md:flex-row items-start md:items-center gap-6">
@@ -119,139 +116,128 @@ export default async function HomePage({
         </Link>
       </section>
 
-      {/* Matchup Simulator Section */}
-      <section className="mb-16">
-        <div className="text-center max-w-2xl mx-auto mb-6">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-aoe-accent/10 border border-aoe-accent/30 text-aoe-accent text-xs font-semibold uppercase tracking-wider mb-2">
-            <Swords className="w-3.5 h-3.5" />
-            {locale === "es" ? "Simulador de Enfrentamientos" : "Matchup Simulator"}
-          </div>
-          <h2 className="text-2xl md:text-3xl font-medieval font-bold text-white">
-            {locale === "es" ? "Compara Cualquier Matchup al Instante" : "Compare Any Matchup in Real-Time"}
-          </h2>
-          <p className="text-sm text-gray-400 mt-1">
-            {locale === "es"
-              ? "Selecciona tu civilización y la de tu oponente para ver las ventajas por edades, aperturas y counters clave."
-              : "Select your civilization and your opponent's to view age advantages, opening builds, and key counters."}
-          </p>
-        </div>
-        <HeroMatchupSimulator locale={locale} />
-      </section>
-
       <FavoritesSection />
 
-      {/* AoE2 Eco & Macro Mathematics Engine */}
-      <section className="mb-16">
-        <EcoMathCalculator locale={locale} />
-      </section>
-
-      {/* After the Game */}
-      <section className="mb-16">
-        <div className="flex items-center gap-3 mb-2">
-          <Upload className="w-5 h-5 text-blue-400" />
-          <h2 className="text-2xl font-medieval font-bold text-white">
-            {d.cat_after}
-          </h2>
-        </div>
-        <p className="text-sm text-gray-500 mb-6 ml-8">{d.cat_after_desc}</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <ToolCard
-            href={`/${locale}/replay`}
-            icon={Upload}
-            title={d.tool_replay_title}
-            desc={d.tool_replay_desc}
-            tag="AI"
-            accent="blue"
-          />
-          <ToolCard
-            href={`/${locale}/players`}
-            icon={Users}
-            title={d.tool_players_title}
-            desc={d.tool_players_desc}
-          />
-        </div>
-      </section>
+      {/* Before the Game */}
+      <ToolSection
+        icon={Radio}
+        iconClass="text-emerald-400"
+        title={d.cat_before}
+        description={d.cat_before_desc}
+        columns={3}
+      >
+        <ToolCard
+          href={`/${locale}/live`}
+          icon={Radio}
+          title={d.tool_live_title}
+          desc={d.tool_live_desc}
+          accent="green"
+        />
+        <ToolCard
+          href={`/${locale}/profile`}
+          icon={UserCircle}
+          title={d.tool_profile_title}
+          desc={d.tool_profile_desc}
+        />
+        <ToolCard
+          href={`/${locale}/learn`}
+          icon={GraduationCap}
+          title={d.tool_learn_title}
+          desc={d.tool_learn_desc}
+        />
+      </ToolSection>
 
       {/* Game Knowledge */}
-      <section className="mb-16">
-        <div className="flex items-center gap-3 mb-2">
-          <BookOpen className="w-5 h-5 text-purple-400" />
-          <h2 className="text-2xl font-medieval font-bold text-white">
-            {d.cat_knowledge}
-          </h2>
-        </div>
-        <p className="text-sm text-gray-500 mb-6 ml-8">
-          {d.cat_knowledge_desc}
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <ToolCard
-            href={`/${locale}/agent`}
-            icon={Swords}
-            title={d.tool_agent_title}
-            desc={d.tool_agent_desc}
-            tag="AI"
-            accent="amber"
-          />
-          <ToolCard
-            href={`/${locale}/counters`}
-            icon={Shield}
-            title={locale === "es" ? "Calculadora de Counters" : "Counter Calculator"}
-            desc={locale === "es" ? "Calcula el contraataque óptimo y el balance de aldeanos en comida, madera y oro." : "Calculate optimal counter army & exact villager balance for food, wood, and gold."}
-            tag="New"
-            accent="green"
-          />
-          <ToolCard
-            href={`/${locale}/matchups`}
-            icon={Swords}
-            title={locale === "es" ? "Enfrentamientos de Civs" : "Civ Matchups"}
-            desc={locale === "es" ? "Guía estratégica cara a cara, picos de poder y tiempos entre civilizaciones." : "Head-to-head strategy guide, power spikes, and timings between civilizations."}
-            accent="blue"
-          />
-          <ToolCard
-            href={`/${locale}/techtree`}
-            icon={BookOpen}
-            title={d.tool_techtree_title}
-            desc={d.tool_techtree_desc}
-          />
-        </div>
-      </section>
+      <ToolSection
+        icon={BookOpen}
+        iconClass="text-purple-400"
+        title={d.cat_knowledge}
+        description={d.cat_knowledge_desc}
+        columns={3}
+      >
+        <ToolCard
+          href={`/${locale}/agent`}
+          icon={Swords}
+          title={d.tool_agent_title}
+          desc={d.tool_agent_desc}
+          tag="AI"
+          accent="amber"
+        />
+        <ToolCard
+          href={`/${locale}/counters`}
+          icon={Shield}
+          title={isEs ? "Calculadora de counters" : "Counter calculator"}
+          desc={
+            isEs
+              ? "Qué unidades contrarrestan a cada composición enemiga y qué te cuesta producirlas."
+              : "Which units answer any enemy composition, and what producing them actually costs."
+          }
+          accent="green"
+        />
+        <ToolCard
+          href={`/${locale}/eco`}
+          icon={Calculator}
+          title={isEs ? "Calculadora de economía" : "Economy calculator"}
+          desc={
+            isEs
+              ? "Cuántos aldeanos necesitas en comida, madera y oro para no parar de producir. Datos reales del juego."
+              : "How many villagers each resource needs to keep production running. Straight from the game data."
+          }
+          tag="New"
+          accent="blue"
+        />
+        <ToolCard
+          href={`/${locale}/matchups`}
+          icon={Swords}
+          title={isEs ? "Enfrentamientos de civs" : "Civ matchups"}
+          desc={
+            isEs
+              ? "Compara dos civilizaciones edad por edad: aperturas, picos de poder y counters clave."
+              : "Compare two civilizations age by age: openings, power spikes and the counters that decide it."
+          }
+        />
+        <ToolCard
+          href={`/${locale}/techtree`}
+          icon={BookOpen}
+          title={d.tool_techtree_title}
+          desc={d.tool_techtree_desc}
+        />
+        <ToolCard
+          href={`/${locale}/hub`}
+          icon={Tv}
+          title={isEs ? "Creator Hub" : "Creator Hub"}
+          desc={
+            isEs
+              ? "Los mejores creadores en español e inglés, torneos en curso y qué ha cambiado el último parche."
+              : "The best creators in English and Spanish, live tournaments, and what the latest patch changed."
+          }
+          accent="purple"
+        />
+      </ToolSection>
 
-      {/* Community & Creator Hub Spotlight */}
-      <section className="mb-16">
-        <div className="rounded-2xl border border-aoe-accent/40 bg-gradient-to-br from-slate-900/90 via-aoe-card to-slate-950 p-6 md:p-8 shadow-xl relative overflow-hidden">
-          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded bg-aoe-accent/20 text-aoe-accent border border-aoe-accent/30 flex items-center gap-1.5">
-                  <Tv className="w-3.5 h-3.5" />
-                  {locale === "es" ? "Comunidad & Torneos" : "Community & Tournaments"}
-                </span>
-                <span className="text-xs text-yellow-400 flex items-center gap-1">
-                  <Trophy className="w-3.5 h-3.5" />
-                  S-Tier Tracker
-                </span>
-              </div>
-              <h2 className="text-2xl md:text-3xl font-medieval font-bold gold-gradient mb-2">
-                {locale === "es" ? "AoE2 Creator Hub & Torneos Mundiales" : "AoE2 Creator Hub & World Tournaments"}
-              </h2>
-              <p className="text-gray-300 text-sm md:text-base leading-relaxed max-w-2xl">
-                {locale === "es"
-                  ? "Sigue a los mejores creadores de YouTube en español e inglés (NachoAoE, Mario Valle, Tatoh, Spirit of the Law, Hera, TheViper, T90), sus mejores guías y las fechas de los torneos mayores."
-                  : "Explore the best YouTube creators in English & Spanish (Hera, TheViper, Spirit of the Law, T90, NachoAoE, Mario Valle, Tatoh), watch featured guides, and follow pro tournament brackets."}
-              </p>
-            </div>
-
-            <Link
-              href={`/${locale}/hub`}
-              className="btn-primary text-sm !px-6 !py-3 inline-flex items-center gap-2 shrink-0 font-bold shadow-lg"
-            >
-              <Tv className="w-4 h-4" />
-              <span>{locale === "es" ? "Explorar Creator Hub" : "Explore Creator Hub"}</span>
-              <ChevronRight className="w-4 h-4" />
-            </Link>
-          </div>
-        </div>
-      </section>
+      {/* After the Game */}
+      <ToolSection
+        icon={Upload}
+        iconClass="text-blue-400"
+        title={d.cat_after}
+        description={d.cat_after_desc}
+        columns={2}
+      >
+        <ToolCard
+          href={`/${locale}/replay`}
+          icon={Upload}
+          title={d.tool_replay_title}
+          desc={d.tool_replay_desc}
+          tag="AI"
+          accent="blue"
+        />
+        <ToolCard
+          href={`/${locale}/players`}
+          icon={Users}
+          title={d.tool_players_title}
+          desc={d.tool_players_desc}
+        />
+      </ToolSection>
 
       {/* About + FAQ (SEO content) */}
       <HomeSeoContent dict={dict} />
@@ -264,7 +250,7 @@ export default async function HomePage({
             <div className="text-sm">{d.stat_civs}</div>
           </div>
           <div className="text-center">
-            <div className="text-3xl font-bold text-white">8</div>
+            <div className="text-3xl font-bold text-white">11</div>
             <div className="text-sm">{d.stat_tools}</div>
           </div>
           <div className="text-center">
@@ -298,13 +284,48 @@ export default async function HomePage({
               <line x1="10" x2="10" y1="2" y2="4" />
               <line x1="14" x2="14" y1="2" y2="4" />
             </svg>
-            {locale === "es"
+            {isEs
               ? "Apoya este proyecto en Ko-fi"
               : "Support this project on Ko-fi"}
           </a>
         </div>
       </section>
     </div>
+  );
+}
+
+function ToolSection({
+  icon: Icon,
+  iconClass,
+  title,
+  description,
+  columns,
+  children,
+}: {
+  icon: typeof Swords;
+  iconClass: string;
+  title: string;
+  description: string;
+  columns: 2 | 3;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="mb-16">
+      <div className="flex items-center gap-3 mb-1.5">
+        <Icon className={`w-5 h-5 ${iconClass}`} />
+        <h2 className="text-2xl font-medieval font-bold text-white">{title}</h2>
+      </div>
+      <p className="text-sm text-gray-500 mb-6 ml-8">{description}</p>
+      <div
+        className={
+          columns === 2
+            ? "grid grid-cols-1 md:grid-cols-2 gap-4"
+            : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+        }
+      >
+        {children}
+      </div>
+    </section>
   );
 }
 
@@ -430,7 +451,7 @@ function ToolCard({
   return (
     <Link
       href={href}
-      className={`group card ${c.border} transition-all duration-300 hover:glow`}
+      className={`group card h-full ${c.border} transition-colors duration-200`}
     >
       <div className="flex items-start gap-4">
         <div

@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Swords, Shield, Zap, Sparkles, Trophy, ArrowRight, BookOpen } from "lucide-react";
+import { Sparkles, Trophy, ArrowRight, BookOpen } from "lucide-react";
 import { POPULAR_MATCHUPS, CIV_DATA } from "@/lib/aoe2/matchups";
+import MatchupSimulator from "@/components/matchups/MatchupSimulator";
 import JsonLd from "@/components/seo/JsonLd";
 
 export async function generateMetadata({
@@ -74,26 +75,9 @@ export default function MatchupsIndexPage({
         </p>
       </div>
 
-      {/* Quick Matchup Explorer Callout */}
-      <div className="card border-aoe-accent/30 bg-gradient-to-r from-aoe-accent/10 via-aoe-card to-aoe-dark mb-10 p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-bold text-white mb-1 flex items-center gap-2">
-            <Swords className="w-5 h-5 text-aoe-accent" />
-            {isEs ? "¿Buscas una estrategia personalizada?" : "Looking for customized advice?"}
-          </h2>
-          <p className="text-xs sm:text-sm text-gray-300">
-            {isEs
-              ? "Pregúntale al Agente de IA para adaptar el matchup a tu mapa, ELO y estilo de juego en tiempo real."
-              : "Ask the AI Agent to adapt any matchup to your specific map, ELO bracket, and playstyle in real-time."}
-          </p>
-        </div>
-        <Link
-          href={`/${locale}/agent`}
-          className="btn-primary shrink-0 inline-flex items-center gap-2 text-sm"
-        >
-          <Sparkles className="w-4 h-4" />
-          {isEs ? "Abrir Agente IA" : "Open AI Agent"}
-        </Link>
+      {/* Interactive simulator */}
+      <div className="mb-12">
+        <MatchupSimulator locale={locale} />
       </div>
 
       {/* Popular Matchups Grid */}

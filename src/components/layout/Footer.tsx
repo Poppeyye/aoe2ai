@@ -66,6 +66,10 @@ export default function Footer() {
                 {locale === "es" ? "Calculadora Counters" : "Counters"}
               </Link>
               <span>&bull;</span>
+              <Link href={`/${locale}/eco`} className="hover:text-aoe-accent transition-colors">
+                {locale === "es" ? "Economía" : "Economy"}
+              </Link>
+              <span>&bull;</span>
               <Link href={`/${locale}/matchups`} className="hover:text-aoe-accent transition-colors">
                 {locale === "es" ? "Enfrentamientos" : "Matchups"}
               </Link>

@@ -34,6 +34,7 @@ const STATIC_PAGES: PageDef[] = [
   { path: "/live", priority: 0.9, changeFrequency: "weekly" },
   { path: "/hub", priority: 0.88, changeFrequency: "weekly" },
   { path: "/counters", priority: 0.88, changeFrequency: "weekly" },
+  { path: "/eco", priority: 0.88, changeFrequency: "monthly" },
   { path: "/replay", priority: 0.8, changeFrequency: "weekly" },
   { path: "/matchups", priority: 0.85, changeFrequency: "weekly" },
   { path: "/guides/how-to-beat-extreme-ai", priority: 0.85, changeFrequency: "monthly" },

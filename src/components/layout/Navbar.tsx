@@ -2,41 +2,52 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import {
   Menu, X, Swords, LogOut, User, Upload, BookOpen, Users,
   Radio, GraduationCap, UserCircle, Shield, BarChart3, Tv,
+  Calculator, ChevronDown,
 } from "lucide-react";
 import { useDictionary, useLocale } from "@/i18n/I18nProvider";
 import { isAdminEmail } from "@/lib/admin";
 import LanguageSwitcher from "./LanguageSwitcher";
 
-const NAV_KEYS = [
+const PRIMARY_LINKS = [
   { path: "/agent", key: "agent" as const, icon: Swords },
-  { path: "/replay", key: "replay" as const, icon: Upload },
-  { path: "/counters", key: "counters" as const, icon: Shield },
-  { path: "/matchups", key: "matchups" as const, icon: Swords },
-  { path: "/hub", key: "hub" as const, icon: Tv },
-  { path: "/techtree", key: "techtree" as const, icon: BookOpen },
   { path: "/live", key: "live" as const, icon: Radio },
+  { path: "/replay", key: "replay" as const, icon: Upload },
   { path: "/learn", key: "learn" as const, icon: GraduationCap },
+];
+
+const TOOL_LINKS = [
+  { path: "/counters", key: "counters" as const, icon: Shield },
+  { path: "/eco", key: "eco" as const, icon: Calculator },
+  { path: "/matchups", key: "matchups" as const, icon: Swords },
+  { path: "/techtree", key: "techtree" as const, icon: BookOpen },
+  { path: "/hub", key: "hub" as const, icon: Tv },
+  { path: "/players", key: "players" as const, icon: Users },
 ];
 
 export default function Navbar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const dict = useDictionary();
   const locale = useLocale();
   const { data: session } = useSession();
 
-  const items = NAV_KEYS.map((item) => ({
-    href: `/${locale}${item.path}`,
-    label: dict.nav[item.key],
-    icon: item.icon,
-  }));
+  useEffect(() => {
+    setToolsOpen(false);
+    setUserMenuOpen(false);
+    setOpen(false);
+  }, [pathname]);
+
+  const href = (path: string) => `/${locale}${path}`;
+  const isActive = (path: string) => pathname === href(path);
+  const toolsActive = TOOL_LINKS.some((item) => isActive(item.path));
 
   return (
     <nav className="sticky top-0 z-50 bg-aoe-dark/95 backdrop-blur-md border-b border-aoe-border">
@@ -49,20 +60,63 @@ export default function Navbar() {
             </span>
           </Link>
 
-          <div className="hidden lg:flex items-center gap-0.5 xl:gap-1">
-            {items.map((item) => (
+          <div className="hidden lg:flex items-center gap-1">
+            {PRIMARY_LINKS.map((item) => (
               <Link
-                key={item.href}
-                href={item.href}
+                key={item.path}
+                href={href(item.path)}
                 className={cn(
-                  "nav-link px-2.5 py-1.5 xl:px-3 xl:py-2 rounded-md inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 text-xs xl:text-sm font-medium",
-                  pathname === item.href && "nav-link-active bg-aoe-accent/10"
+                  "nav-link px-3 py-2 rounded-md inline-flex items-center gap-1.5 whitespace-nowrap text-sm font-medium",
+                  isActive(item.path) && "nav-link-active bg-aoe-accent/10"
                 )}
               >
-                <item.icon className="w-3.5 h-3.5 shrink-0" />
-                <span>{item.label}</span>
+                <item.icon className="w-4 h-4 shrink-0" />
+                <span>{dict.nav[item.key]}</span>
               </Link>
             ))}
+
+            <div className="relative">
+              <button
+                onClick={() => setToolsOpen(!toolsOpen)}
+                className={cn(
+                  "nav-link px-3 py-2 rounded-md inline-flex items-center gap-1.5 whitespace-nowrap text-sm font-medium",
+                  (toolsOpen || toolsActive) && "nav-link-active bg-aoe-accent/10"
+                )}
+              >
+                <span>{locale === "es" ? "Herramientas" : "Tools"}</span>
+                <ChevronDown
+                  className={cn("w-3.5 h-3.5 transition-transform", toolsOpen && "rotate-180")}
+                />
+              </button>
+
+              {toolsOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setToolsOpen(false)}
+                    aria-hidden="true"
+                  />
+                  <div className="absolute left-0 mt-2 w-56 rounded-xl border border-aoe-border bg-aoe-card shadow-2xl overflow-hidden z-20 py-1">
+                    {TOOL_LINKS.map((item) => (
+                      <Link
+                        key={item.path}
+                        href={href(item.path)}
+                        onClick={() => setToolsOpen(false)}
+                        className={cn(
+                          "flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors",
+                          isActive(item.path)
+                            ? "text-aoe-accent bg-aoe-accent/10"
+                            : "text-gray-400 hover:text-white hover:bg-aoe-dark/60"
+                        )}
+                      >
+                        <item.icon className="w-4 h-4 shrink-0" />
+                        {dict.nav[item.key]}
+                      </Link>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
           <div className="hidden lg:flex items-center gap-3">
@@ -134,6 +188,7 @@ export default function Navbar() {
           <button
             className="lg:hidden text-gray-400 hover:text-white"
             onClick={() => setOpen(!open)}
+            aria-label="Menu"
           >
             {open ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
@@ -141,28 +196,44 @@ export default function Navbar() {
 
         {open && (
           <div className="lg:hidden pb-4 border-t border-aoe-border mt-2 pt-4">
-            <div className="flex flex-col gap-2">
-              {items.map((item) => (
+            <div className="flex flex-col gap-1">
+              {PRIMARY_LINKS.map((item) => (
                 <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setOpen(false)}
+                  key={item.path}
+                  href={href(item.path)}
                   className={cn(
                     "nav-link px-3 py-2 rounded-md inline-flex items-center gap-2",
-                    pathname === item.href && "nav-link-active bg-aoe-accent/10"
+                    isActive(item.path) && "nav-link-active bg-aoe-accent/10"
                   )}
                 >
                   <item.icon className="w-4 h-4" />
-                  {item.label}
+                  {dict.nav[item.key]}
                 </Link>
               ))}
+
+              <div className="mt-3 mb-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-gray-600">
+                {locale === "es" ? "Herramientas" : "Tools"}
+              </div>
+              {TOOL_LINKS.map((item) => (
+                <Link
+                  key={item.path}
+                  href={href(item.path)}
+                  className={cn(
+                    "nav-link px-3 py-2 rounded-md inline-flex items-center gap-2",
+                    isActive(item.path) && "nav-link-active bg-aoe-accent/10"
+                  )}
+                >
+                  <item.icon className="w-4 h-4" />
+                  {dict.nav[item.key]}
+                </Link>
+              ))}
+
               {session && (
                 <Link
                   href={`/${locale}/profile`}
-                  onClick={() => setOpen(false)}
                   className={cn(
-                    "nav-link px-3 py-2 rounded-md inline-flex items-center gap-2",
-                    pathname === `/${locale}/profile` && "nav-link-active bg-aoe-accent/10"
+                    "nav-link px-3 py-2 rounded-md inline-flex items-center gap-2 mt-3",
+                    isActive("/profile") && "nav-link-active bg-aoe-accent/10"
                   )}
                 >
                   <UserCircle className="w-4 h-4" />
@@ -172,17 +243,16 @@ export default function Navbar() {
               {session && isAdminEmail(session.user?.email) && (
                 <Link
                   href={`/${locale}/admin`}
-                  onClick={() => setOpen(false)}
                   className={cn(
                     "nav-link px-3 py-2 rounded-md inline-flex items-center gap-2 text-aoe-accent",
-                    pathname === `/${locale}/admin` && "nav-link-active bg-aoe-accent/10"
+                    isActive("/admin") && "nav-link-active bg-aoe-accent/10"
                   )}
                 >
                   <BarChart3 className="w-4 h-4" />
                   {locale === "es" ? "Panel Admin" : "Admin Hub"}
                 </Link>
               )}
-              <div className="flex items-center justify-between mt-2 px-3">
+              <div className="flex items-center justify-between mt-3 px-3">
                 <LanguageSwitcher />
                 {session ? (
                   <button
@@ -197,7 +267,6 @@ export default function Navbar() {
                 ) : (
                   <Link
                     href={`/${locale}/login?callbackUrl=${encodeURIComponent(pathname)}`}
-                    onClick={() => setOpen(false)}
                     className="btn-secondary text-sm"
                   >
                     {dict.nav.login}
