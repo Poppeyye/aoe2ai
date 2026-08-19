@@ -49,18 +49,18 @@ export default function Navbar() {
             </span>
           </Link>
 
-          <div className="hidden lg:flex items-center gap-1">
+          <div className="hidden lg:flex items-center gap-0.5 xl:gap-1">
             {items.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "nav-link px-3 py-2 rounded-md inline-flex items-center gap-1.5",
+                  "nav-link px-2.5 py-1.5 xl:px-3 xl:py-2 rounded-md inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 text-xs xl:text-sm font-medium",
                   pathname === item.href && "nav-link-active bg-aoe-accent/10"
                 )}
               >
-                <item.icon className="w-3.5 h-3.5" />
-                {item.label}
+                <item.icon className="w-3.5 h-3.5 shrink-0" />
+                <span>{item.label}</span>
               </Link>
             ))}
           </div>

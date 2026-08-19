@@ -23,6 +23,7 @@ import { isValidLocale } from "@/i18n/config";
 import { notFound } from "next/navigation";
 import FavoritesSection from "@/components/home/FavoritesSection";
 import HeroMatchupSimulator from "@/components/home/HeroMatchupSimulator";
+import EcoMathCalculator from "@/components/eco/EcoMathCalculator";
 
 export default async function HomePage({
   params,
@@ -37,7 +38,7 @@ export default async function HomePage({
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       {/* Hero */}
-      <section className="relative py-16 md:py-24 text-center">
+      <section className="relative pt-10 pb-12 md:pt-16 md:pb-16 text-center">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-aoe-accent/[0.03] rounded-full blur-3xl" />
           <Image
@@ -58,42 +59,39 @@ export default async function HomePage({
             }}
           />
         </div>
-        <div className="relative">
-          <h1 className="text-4xl md:text-6xl lg:text-7xl font-medieval font-bold mb-6 leading-tight">
+        <div className="relative max-w-4xl mx-auto">
+          <h1 className="text-3xl sm:text-5xl md:text-6xl font-medieval font-bold mb-5 leading-tight tracking-tight">
             {d.hero_pre}{" "}
             <span className="gold-gradient">{d.hero_highlight}</span>{" "}
             {d.hero_post}
           </h1>
-          <p className="text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-10 leading-relaxed">
+          <p className="text-base sm:text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-8 leading-relaxed">
             {d.hero_subtitle}
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             <Link
               href={`/${locale}/live`}
-              className="btn-primary text-lg inline-flex items-center gap-2"
+              className="btn-primary text-base sm:text-lg inline-flex items-center gap-2 shadow-lg"
             >
               <Eye className="w-5 h-5" />
               {d.cta_matchup}
             </Link>
             <Link
               href={`/${locale}/agent`}
-              className="btn-secondary text-lg inline-flex items-center gap-2"
+              className="btn-secondary text-base sm:text-lg inline-flex items-center gap-2"
             >
               <Swords className="w-5 h-5" />
               {d.cta_agent}
             </Link>
           </div>
-
-          {/* Interactive Hero Matchup Simulator */}
-          <HeroMatchupSimulator locale={locale} />
         </div>
       </section>
 
       {/* Featured: Live Match Detection */}
-      <section className="mb-16">
+      <section className="mb-14">
         <Link
           href={`/${locale}/profile`}
-          className="group block relative overflow-hidden rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-500/[0.08] via-slate-800/80 to-slate-900/80 p-6 md:p-8 hover:border-amber-500/40 transition-all duration-300"
+          className="group block relative overflow-hidden rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-500/[0.08] via-slate-800/80 to-slate-900/80 p-6 md:p-8 hover:border-amber-500/40 transition-all duration-300 shadow-xl"
         >
           <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/[0.04] rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
           <div className="relative flex flex-col md:flex-row items-start md:items-center gap-6">
@@ -121,40 +119,30 @@ export default async function HomePage({
         </Link>
       </section>
 
+      {/* Matchup Simulator Section */}
+      <section className="mb-16">
+        <div className="text-center max-w-2xl mx-auto mb-6">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-aoe-accent/10 border border-aoe-accent/30 text-aoe-accent text-xs font-semibold uppercase tracking-wider mb-2">
+            <Swords className="w-3.5 h-3.5" />
+            {locale === "es" ? "Simulador de Enfrentamientos" : "Matchup Simulator"}
+          </div>
+          <h2 className="text-2xl md:text-3xl font-medieval font-bold text-white">
+            {locale === "es" ? "Compara Cualquier Matchup al Instante" : "Compare Any Matchup in Real-Time"}
+          </h2>
+          <p className="text-sm text-gray-400 mt-1">
+            {locale === "es"
+              ? "Selecciona tu civilización y la de tu oponente para ver las ventajas por edades, aperturas y counters clave."
+              : "Select your civilization and your opponent's to view age advantages, opening builds, and key counters."}
+          </p>
+        </div>
+        <HeroMatchupSimulator locale={locale} />
+      </section>
+
       <FavoritesSection />
 
-      {/* Before the Game */}
+      {/* AoE2 Eco & Macro Mathematics Engine */}
       <section className="mb-16">
-        <div className="flex items-center gap-3 mb-2">
-          <Shield className="w-5 h-5 text-green-400" />
-          <h2 className="text-2xl font-medieval font-bold text-white">
-            {d.cat_before}
-          </h2>
-        </div>
-        <p className="text-sm text-gray-500 mb-6 ml-8">{d.cat_before_desc}</p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <ToolCard
-            href={`/${locale}/profile`}
-            icon={UserCircle}
-            title={d.tool_profile_title}
-            desc={d.tool_profile_desc}
-            tag="New"
-            accent="amber"
-          />
-          <ToolCard
-            href={`/${locale}/live`}
-            icon={Radio}
-            title={d.tool_live_title}
-            desc={d.tool_live_desc}
-            accent="green"
-          />
-          <ToolCard
-            href={`/${locale}/learn`}
-            icon={GraduationCap}
-            title={d.tool_learn_title}
-            desc={d.tool_learn_desc}
-          />
-        </div>
+        <EcoMathCalculator locale={locale} />
       </section>
 
       {/* After the Game */}
