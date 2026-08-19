@@ -7,7 +7,7 @@ import { useSession, signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import {
   Menu, X, Swords, LogOut, User, Upload, BookOpen, Users,
-  Radio, GraduationCap, UserCircle, Shield, BarChart3,
+  Radio, GraduationCap, UserCircle, Shield, BarChart3, Tv,
 } from "lucide-react";
 import { useDictionary, useLocale } from "@/i18n/I18nProvider";
 import { isAdminEmail } from "@/lib/admin";
@@ -18,10 +18,10 @@ const NAV_KEYS = [
   { path: "/replay", key: "replay" as const, icon: Upload },
   { path: "/counters", key: "counters" as const, icon: Shield },
   { path: "/matchups", key: "matchups" as const, icon: Swords },
+  { path: "/hub", key: "hub" as const, icon: Tv },
   { path: "/techtree", key: "techtree" as const, icon: BookOpen },
   { path: "/live", key: "live" as const, icon: Radio },
   { path: "/learn", key: "learn" as const, icon: GraduationCap },
-  { path: "/players", key: "players" as const, icon: Users },
 ];
 
 export default function Navbar() {

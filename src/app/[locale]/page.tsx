@@ -12,12 +12,17 @@ import {
   Zap,
   Shield,
   Eye,
+  Tv,
+  Trophy,
+  Flame,
+  Sparkles,
 } from "lucide-react";
 import { getDictionary } from "@/i18n/getDictionary";
 import type { Locale } from "@/i18n/config";
 import { isValidLocale } from "@/i18n/config";
 import { notFound } from "next/navigation";
 import FavoritesSection from "@/components/home/FavoritesSection";
+import HeroMatchupSimulator from "@/components/home/HeroMatchupSimulator";
 
 export default async function HomePage({
   params,
@@ -78,6 +83,9 @@ export default async function HomePage({
               {d.cta_agent}
             </Link>
           </div>
+
+          {/* Interactive Hero Matchup Simulator */}
+          <HeroMatchupSimulator locale={locale} />
         </div>
       </section>
 
@@ -217,6 +225,43 @@ export default async function HomePage({
             title={d.tool_techtree_title}
             desc={d.tool_techtree_desc}
           />
+        </div>
+      </section>
+
+      {/* Community & Creator Hub Spotlight */}
+      <section className="mb-16">
+        <div className="rounded-2xl border border-aoe-accent/40 bg-gradient-to-br from-slate-900/90 via-aoe-card to-slate-950 p-6 md:p-8 shadow-xl relative overflow-hidden">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded bg-aoe-accent/20 text-aoe-accent border border-aoe-accent/30 flex items-center gap-1.5">
+                  <Tv className="w-3.5 h-3.5" />
+                  {locale === "es" ? "Comunidad & Torneos" : "Community & Tournaments"}
+                </span>
+                <span className="text-xs text-yellow-400 flex items-center gap-1">
+                  <Trophy className="w-3.5 h-3.5" />
+                  S-Tier Tracker
+                </span>
+              </div>
+              <h2 className="text-2xl md:text-3xl font-medieval font-bold gold-gradient mb-2">
+                {locale === "es" ? "AoE2 Creator Hub & Torneos Mundiales" : "AoE2 Creator Hub & World Tournaments"}
+              </h2>
+              <p className="text-gray-300 text-sm md:text-base leading-relaxed max-w-2xl">
+                {locale === "es"
+                  ? "Sigue a los mejores creadores de YouTube en español e inglés (NachoAoE, Mario Valle, Tatoh, Spirit of the Law, Hera, TheViper, T90), sus mejores guías y las fechas de los torneos mayores."
+                  : "Explore the best YouTube creators in English & Spanish (Hera, TheViper, Spirit of the Law, T90, NachoAoE, Mario Valle, Tatoh), watch featured guides, and follow pro tournament brackets."}
+              </p>
+            </div>
+
+            <Link
+              href={`/${locale}/hub`}
+              className="btn-primary text-sm !px-6 !py-3 inline-flex items-center gap-2 shrink-0 font-bold shadow-lg"
+            >
+              <Tv className="w-4 h-4" />
+              <span>{locale === "es" ? "Explorar Creator Hub" : "Explore Creator Hub"}</span>
+              <ChevronRight className="w-4 h-4" />
+            </Link>
+          </div>
         </div>
       </section>
 

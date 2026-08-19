@@ -32,6 +32,7 @@ const STATIC_PAGES: PageDef[] = [
   { path: "", priority: 1.0, changeFrequency: "weekly" },
   { path: "/agent", priority: 0.9, changeFrequency: "weekly" },
   { path: "/live", priority: 0.9, changeFrequency: "weekly" },
+  { path: "/hub", priority: 0.88, changeFrequency: "weekly" },
   { path: "/counters", priority: 0.88, changeFrequency: "weekly" },
   { path: "/replay", priority: 0.8, changeFrequency: "weekly" },
   { path: "/matchups", priority: 0.85, changeFrequency: "weekly" },
