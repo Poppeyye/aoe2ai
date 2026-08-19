@@ -7,9 +7,10 @@ import { useSession, signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import {
   Menu, X, Swords, LogOut, User, Upload, BookOpen, Users,
-  Radio, GraduationCap, UserCircle, Shield,
+  Radio, GraduationCap, UserCircle, Shield, BarChart3,
 } from "lucide-react";
 import { useDictionary, useLocale } from "@/i18n/I18nProvider";
+import { isAdminEmail } from "@/lib/admin";
 import LanguageSwitcher from "./LanguageSwitcher";
 
 const NAV_KEYS = [
@@ -102,12 +103,21 @@ export default function Navbar() {
                     >
                       <UserCircle className="w-4 h-4" /> {dict.nav.profile}
                     </Link>
+                    {isAdminEmail(session.user?.email) && (
+                      <Link
+                        href={`/${locale}/admin`}
+                        onClick={() => setUserMenuOpen(false)}
+                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-aoe-accent hover:text-yellow-300 hover:bg-aoe-accent/10 transition-colors font-medium border-t border-aoe-border/50"
+                      >
+                        <BarChart3 className="w-4 h-4" /> {locale === "es" ? "Panel Admin" : "Admin Hub"}
+                      </Link>
+                    )}
                     <button
                       onClick={() => {
                         setUserMenuOpen(false);
                         signOut({ callbackUrl: `/${locale}` });
                       }}
-                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-400 hover:text-white hover:bg-aoe-dark/50 transition-colors"
+                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-400 hover:text-white hover:bg-aoe-dark/50 transition-colors border-t border-aoe-border/50"
                     >
                       <LogOut className="w-4 h-4" /> {dict.login.signout}
                     </button>
@@ -157,6 +167,19 @@ export default function Navbar() {
                 >
                   <UserCircle className="w-4 h-4" />
                   {dict.nav.profile}
+                </Link>
+              )}
+              {session && isAdminEmail(session.user?.email) && (
+                <Link
+                  href={`/${locale}/admin`}
+                  onClick={() => setOpen(false)}
+                  className={cn(
+                    "nav-link px-3 py-2 rounded-md inline-flex items-center gap-2 text-aoe-accent",
+                    pathname === `/${locale}/admin` && "nav-link-active bg-aoe-accent/10"
+                  )}
+                >
+                  <BarChart3 className="w-4 h-4" />
+                  {locale === "es" ? "Panel Admin" : "Admin Hub"}
                 </Link>
               )}
               <div className="flex items-center justify-between mt-2 px-3">
