@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
-  Mic, MicOff, Volume2, VolumeX, Square, RotateCcw,
+  Volume2, VolumeX, Square, RotateCcw,
   Swords, Shield, Crosshair, Castle, ArrowUpRight, FastForward,
-  Send, Sparkles, AlertTriangle, Check, Copy, Radio,
+  Send, Sparkles, Check, Copy, Radio,
   ChevronDown, ChevronUp, Loader2, Play, Flame, MapPin, Target,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -260,14 +260,7 @@ export default function LiveMatchCopilot({
     if (initialOpponentPlaystyle) setOpponentPlaystyle(initialOpponentPlaystyle);
   }, [initialMyCiv, initialOpponentCiv, initialMap, initialOpponentElo, initialOpponentPlaystyle]);
 
-  // Speech Recognition state
-  const [isListening, setIsListening] = useState(false);
-  const [transcript, setTranscript] = useState("");
-  const [hasSpeechRecognition, setHasSpeechRecognition] = useState(true);
-  const [speechError, setSpeechError] = useState<string | null>(null);
-  const recognitionRef = useRef<any>(null);
-
-  // TTS Voice Output state
+  // TTS Voice Output state (Natural, steady, human-paced reading)
   const [autoSpeak, setAutoSpeak] = useState(true);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [spokenTakeaway, setSpokenTakeaway] = useState<string>("");
@@ -279,110 +272,17 @@ export default function LiveMatchCopilot({
   const [lastPromptTitle, setLastPromptTitle] = useState<string>("");
   const [copied, setCopied] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const submitQuestionRef = useRef<(text: string, title: string, chipId?: string) => Promise<void>>();
 
-  // Initialize Web Speech Recognition
+  // Clean up speech on unmount
   useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const SpeechRecognitionClass =
-      (window as unknown as { SpeechRecognition: any }).SpeechRecognition ||
-      (window as unknown as { webkitSpeechRecognition: any }).webkitSpeechRecognition;
-
-    if (!SpeechRecognitionClass) {
-      setHasSpeechRecognition(false);
-      return;
-    }
-
-    try {
-      const recognition = new SpeechRecognitionClass();
-      recognition.continuous = false;
-      recognition.interimResults = true;
-      recognition.lang = locale === "es" ? "es-ES" : "en-US";
-
-      recognition.onstart = () => {
-        setIsListening(true);
-        setSpeechError(null);
-        setTranscript("");
-      };
-
-      recognition.onresult = (event: any) => {
-        let interim = "";
-        let final = "";
-
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            final += event.results[i][0].transcript;
-          } else {
-            interim += event.results[i][0].transcript;
-          }
-        }
-
-        const current = final || interim;
-        setTranscript(current);
-
-        if (final && final.trim().length > 2) {
-          submitQuestionRef.current?.(final.trim(), final.trim());
-        }
-      };
-
-      recognition.onerror = (event: any) => {
-        setIsListening(false);
-        if (event.error === "not-allowed") {
-          setSpeechError(
-            locale === "es"
-              ? "Permiso de micrófono no otorgado. Habilítalo en tu navegador."
-              : "Microphone permission denied. Enable it in your browser."
-          );
-        } else if (event.error !== "no-speech") {
-          setSpeechError(event.error);
-        }
-      };
-
-      recognition.onend = () => {
-        setIsListening(false);
-      };
-
-      recognitionRef.current = recognition;
-    } catch {
-      setHasSpeechRecognition(false);
-    }
-
     return () => {
-      recognitionRef.current?.abort();
       if (typeof window !== "undefined" && "speechSynthesis" in window) {
         window.speechSynthesis.cancel();
       }
     };
-  }, [locale]);
+  }, []);
 
-  const toggleListening = useCallback(() => {
-    if (!hasSpeechRecognition) return;
-
-    if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
-    } else {
-      if (typeof window !== "undefined" && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-      }
-      setIsSpeaking(false);
-      try {
-        recognitionRef.current?.start();
-      } catch {
-        recognitionRef.current?.stop();
-        setTimeout(() => {
-          try {
-            recognitionRef.current?.start();
-          } catch {
-            // failed to restart
-          }
-        }, 150);
-      }
-    }
-  }, [isListening, hasSpeechRecognition]);
-
-  // Spoken voice playback
+  // Spoken voice playback with calm, natural pacing
   const speakAdvice = useCallback(
     (textToSpeak: string) => {
       if (!autoSpeak || typeof window === "undefined" || !("speechSynthesis" in window)) return;
@@ -397,7 +297,8 @@ export default function LiveMatchCopilot({
 
       const utterance = new SpeechSynthesisUtterance(punchline);
       utterance.lang = locale === "es" ? "es-ES" : "en-US";
-      utterance.rate = 1.06;
+      // Calm, natural pace (0.95x) so it's pleasant, clear and logical
+      utterance.rate = 0.95;
       utterance.pitch = 1.0;
 
       const voices = window.speechSynthesis.getVoices();
@@ -445,15 +346,8 @@ export default function LiveMatchCopilot({
     async (questionText: string, displayTitle: string, situationChipId?: string) => {
       if (!questionText.trim()) return;
 
-      // Stop listening if active
-      if (isListening) {
-        recognitionRef.current?.stop();
-        setIsListening(false);
-      }
-
       setLastPromptTitle(displayTitle);
       setQueryInput("");
-      setTranscript("");
       setIsLoading(true);
       setCurrentResponse("");
       stopSpeaking();
@@ -472,7 +366,7 @@ export default function LiveMatchCopilot({
             `• Estilo Rival: ${opponentPlaystyle}\n\n` +
             `EMERGENCIA / PREGUNTA:\n"${questionText}"\n\n` +
             `Por favor, responde con instrucciones tácticas urgentes:\n` +
-            `1. Empieza con 1-2 frases concisas de orden directa (sin markdown) para el audio TTS en auriculares.\n` +
+            `1. Empieza con 1-2 frases concisas de orden directa (sin markdown) para el audio en auriculares.\n` +
             `2. 🚨 Respuesta Inmediata (unidades, micro, empalizadas).\n` +
             `3. ⚙️ Ajuste Económico (reubicación de aldeanos, granjas, mercado).\n` +
             `4. 🔄 Contragolpe & Transición (Castillos, contracomposición y condición de victoria).`
@@ -484,7 +378,7 @@ export default function LiveMatchCopilot({
             `• Opponent Playstyle: ${opponentPlaystyle}\n\n` +
             `EMERGENCY / QUESTION:\n"${questionText}"\n\n` +
             `Please respond with urgent live tactical coaching:\n` +
-            `1. Start with 1-2 concise direct command sentences (no markdown) for headphone TTS audio.\n` +
+            `1. Start with 1-2 concise direct command sentences (no markdown) for headphone audio.\n` +
             `2. 🚨 Immediate Defense (units to queue, micro, small-walls).\n` +
             `3. ⚙️ Eco Adjustment (villager movement, farms, market).\n` +
             `4. 🔄 Counter-Attack & Tech Transition (Castle Age, counter composition & win condition).`;
@@ -552,7 +446,6 @@ export default function LiveMatchCopilot({
       }
     },
     [
-      isListening,
       myCiv,
       opponentCiv,
       mapName,
@@ -564,7 +457,6 @@ export default function LiveMatchCopilot({
       speakAdvice,
     ]
   );
-  submitQuestionRef.current = submitQuestion;
 
   const copyAdvice = useCallback(() => {
     if (!currentResponse) return;
@@ -583,33 +475,21 @@ export default function LiveMatchCopilot({
       {/* Background HUD Grid Accent */}
       <div className="absolute top-0 right-0 w-80 h-80 bg-amber-500/5 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
 
-      {/* Top Header & Status Bar */}
+      {/* Top Header & Audio Status Bar */}
       <div className="flex items-center justify-between gap-3 flex-wrap pb-4 border-b border-amber-500/20">
         <div className="flex items-center gap-3">
-          <div className="relative flex items-center justify-center">
-            <div
-              className={cn(
-                "w-10 h-10 rounded-xl flex items-center justify-center border transition-all",
-                isListening
-                  ? "bg-red-500/20 border-red-500 text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.5)] animate-pulse"
-                  : isSpeaking
-                  ? "bg-amber-500/20 border-amber-500 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.4)]"
-                  : "bg-amber-500/10 border-amber-500/30 text-amber-400"
-              )}
-            >
-              {isListening ? (
-                <Radio className="w-5 h-5 animate-spin text-red-400" />
-              ) : isSpeaking ? (
-                <Volume2 className="w-5 h-5 animate-pulse text-amber-300" />
-              ) : (
-                <Mic className="w-5 h-5" />
-              )}
-            </div>
-            {isListening && (
-              <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
-              </span>
+          <div
+            className={cn(
+              "w-10 h-10 rounded-xl flex items-center justify-center border transition-all",
+              isSpeaking
+                ? "bg-amber-500/20 border-amber-500 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.4)]"
+                : "bg-amber-500/10 border-amber-500/30 text-amber-400"
+            )}
+          >
+            {isSpeaking ? (
+              <Volume2 className="w-5 h-5 animate-pulse text-amber-300" />
+            ) : (
+              <Sparkles className="w-5 h-5" />
             )}
           </div>
 
@@ -644,8 +524,8 @@ export default function LiveMatchCopilot({
             title={
               autoSpeak
                 ? locale === "es"
-                  ? "Audio activado: el copiloto hablará en voz alta"
-                  : "Audio enabled: copilot will speak aloud"
+                  ? "Audio activado: el copiloto leerá el consejo en voz alta"
+                  : "Audio enabled: copilot will read advice aloud"
                 : locale === "es"
                 ? "Audio silenciado"
                 : "Audio muted"
@@ -661,7 +541,7 @@ export default function LiveMatchCopilot({
               className="btn-secondary text-xs !px-2.5 !py-1.5 border-red-500/40 text-red-400 bg-red-500/10 hover:bg-red-500/20 flex items-center gap-1"
             >
               <Square className="w-3 h-3 fill-current" />
-              <span>{locale === "es" ? "Parar" : "Stop"}</span>
+              <span>{locale === "es" ? "Silenciar" : "Stop Voice"}</span>
             </button>
           )}
 
@@ -669,10 +549,10 @@ export default function LiveMatchCopilot({
             <button
               onClick={replayVoice}
               className="btn-secondary text-xs !px-2.5 !py-1.5 border-amber-500/30 text-amber-300 hover:border-amber-400 flex items-center gap-1"
-              title={locale === "es" ? "Repetir voz por auriculares" : "Replay voice advice in headphones"}
+              title={locale === "es" ? "Escuchar consejo por voz" : "Play voice advice in headphones"}
             >
               <RotateCcw className="w-3 h-3 text-amber-400" />
-              <span>{locale === "es" ? "Escuchar" : "Replay"}</span>
+              <span>{locale === "es" ? "Escuchar" : "Play Voice"}</span>
             </button>
           )}
         </div>
@@ -804,97 +684,42 @@ export default function LiveMatchCopilot({
         )}
       </div>
 
-      {/* Big Tactical Voice Input & Quick Dictation Bar */}
+      {/* Clean Text Query Bar */}
       <div className="mb-4">
-        <div className="relative flex items-center gap-2">
-          {/* Big Pulsing Mic Button */}
-          <button
-            onClick={toggleListening}
-            className={cn(
-              "h-12 px-5 rounded-xl font-bold flex items-center justify-center gap-2.5 transition-all shrink-0 select-none shadow-lg",
-              isListening
-                ? "bg-red-600 hover:bg-red-500 text-white shadow-red-500/50 ring-4 ring-red-500/30 animate-pulse"
-                : "bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-amber-500/20"
-            )}
-            title={locale === "es" ? "Pulsa para hablar o dictar tu emergencia" : "Click to speak or dictate your situation"}
-          >
-            {isListening ? (
-              <>
-                <MicOff className="w-5 h-5 text-white animate-bounce" />
-                <span className="text-sm uppercase tracking-wider">{locale === "es" ? "Escuchando..." : "Listening..."}</span>
-              </>
-            ) : (
-              <>
-                <Mic className="w-5 h-5" />
-                <span className="text-sm uppercase tracking-wider font-extrabold">
-                  {locale === "es" ? "Hablar al Copiloto" : "Speak to Copilot"}
-                </span>
-              </>
-            )}
-          </button>
-
-          {/* Text Input / Live Transcript Box */}
-          <div className="relative flex-1">
-            <input
-              type="text"
-              value={isListening ? transcript : queryInput}
-              onChange={(e) => setQueryInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey && queryInput.trim()) {
-                  submitQuestion(queryInput.trim(), queryInput.trim());
-                }
-              }}
-              placeholder={
-                isListening
-                  ? locale === "es"
-                    ? "Habla ahora... Di tu pregunta o situación táctica"
-                    : "Listening... Speak your tactical situation"
-                  : locale === "es"
-                  ? "O escribe tu consulta (ej. '¿Cómo me defiendo de arqueros en mi madera?')..."
-                  : "Or type your situation (e.g. 'How do I defend archers on my woodline?')..."
+        <div className="relative flex items-center">
+          <input
+            type="text"
+            value={queryInput}
+            onChange={(e) => setQueryInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey && queryInput.trim()) {
+                submitQuestion(queryInput.trim(), queryInput.trim());
               }
-              className={cn(
-                "w-full h-12 bg-slate-800/80 border rounded-xl pl-4 pr-12 text-sm text-white placeholder-slate-500 focus:outline-none transition-all",
-                isListening
-                  ? "border-red-500/60 ring-2 ring-red-500/20 text-red-200"
-                  : "border-slate-700/80 focus:border-amber-500/60 focus:ring-2 focus:ring-amber-500/20"
-              )}
-            />
+            }}
+            placeholder={
+              locale === "es"
+                ? "Pregunta al copiloto (ej. '¿El rival me rushea con scouts y monjes, cómo me defiendo?')..."
+                : "Ask copilot (e.g. 'Opponent is rushing with scouts and monks, how do I defend?')..."
+            }
+            className="w-full h-12 bg-slate-800/90 border border-slate-700/90 rounded-xl pl-4 pr-12 text-sm text-white placeholder-slate-500 focus:border-amber-500/60 focus:ring-2 focus:ring-amber-500/20 focus:outline-none transition-all shadow-inner"
+          />
 
-            {queryInput.trim() && !isLoading && (
-              <button
-                onClick={() => submitQuestion(queryInput.trim(), queryInput.trim())}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg bg-amber-500 text-slate-950 flex items-center justify-center hover:bg-amber-400 transition-colors shadow"
-              >
-                <Send className="w-4 h-4" />
-              </button>
-            )}
+          {queryInput.trim() && !isLoading && (
+            <button
+              onClick={() => submitQuestion(queryInput.trim(), queryInput.trim())}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg bg-amber-500 text-slate-950 flex items-center justify-center hover:bg-amber-400 transition-colors shadow"
+              title={locale === "es" ? "Enviar pregunta" : "Send question"}
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          )}
 
-            {isLoading && (
-              <div className="absolute right-3.5 top-1/2 -translate-y-1/2">
-                <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />
-              </div>
-            )}
-          </div>
+          {isLoading && (
+            <div className="absolute right-3.5 top-1/2 -translate-y-1/2">
+              <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />
+            </div>
+          )}
         </div>
-
-        {speechError && (
-          <div className="mt-2 text-xs text-red-400 flex items-center gap-1.5 bg-red-500/10 border border-red-500/20 rounded-md p-2">
-            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-            <span>{speechError}</span>
-          </div>
-        )}
-
-        {!hasSpeechRecognition && (
-          <div className="mt-2 text-xs text-amber-400/80 flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 rounded-md px-3 py-1.5">
-            <Radio className="w-3.5 h-3.5 shrink-0" />
-            <span>
-              {locale === "es"
-                ? "Reconocimiento de voz nativo no disponible en este navegador. Usa los 6 botones de situación rápida o escribe."
-                : "Speech recognition not available in this browser. Use the 6 quick combat chips below or type."}
-            </span>
-          </div>
-        )}
       </div>
 
       {/* 6 Quick Combat Situation Chips (1-Click Fast Prompts) */}
@@ -905,7 +730,7 @@ export default function LiveMatchCopilot({
             <span>{locale === "es" ? "Situaciones Tácticas Rápidas (1 Clic)" : "Quick Combat Situations (1-Click)"}</span>
           </div>
           <span className="text-[11px] text-slate-400">
-            {locale === "es" ? "Pulsa para respuesta hablada instantánea" : "Click for instant spoken advice"}
+            {locale === "es" ? "Pulsa para respuesta hablada y plan táctico" : "Click for voice advice and tactical plan"}
           </span>
         </div>
 
@@ -1010,7 +835,7 @@ export default function LiveMatchCopilot({
                   {isSpeaking && (
                     <span className="text-[10px] font-bold text-green-400 flex items-center gap-1 animate-pulse">
                       <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
-                      {locale === "es" ? "HABLANDO..." : "SPEAKING..."}
+                      {locale === "es" ? "LEYENDO EN VOZ ALTA..." : "READING ALOUD..."}
                     </span>
                   )}
                 </div>
