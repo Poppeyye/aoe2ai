@@ -14,6 +14,7 @@ import AssistantPanel from "@/components/ai/AssistantPanel";
 import TacticalBriefingCard from "@/components/scout/TacticalBriefingCard";
 import LiveMatchCopilot from "@/components/scout/LiveMatchCopilot";
 import ShareablePlayerCard from "@/components/scout/ShareablePlayerCard";
+import { LadderRatingsBlock } from "@/components/scout/LadderRatings";
 import type { TacticalBriefing, PlaystyleTag, ScoutProfile } from "@/lib/scout/opponent";
 
 interface CivStat {
@@ -57,12 +58,16 @@ interface ScoutData {
   matchCount: number;
   playstyle?: string | null;
   tacticalBriefing?: TacticalBriefing;
+  leaderboardUsed?: string;
 }
 
 interface PlayerSuggestion {
   profileId: number;
   name: string;
   rating: number;
+  ratingSolo?: number;
+  ratingTeam?: number;
+  ratingUnranked?: number;
   rank: number;
   wins: number;
   losses: number;
@@ -257,6 +262,9 @@ function LivePageInner() {
                 const daysSince = p.lastMatchDate && p.lastMatchDate > 0
                   ? Math.floor((now - p.lastMatchDate) / 86400)
                   : null;
+                const solo = p.ratingSolo ?? p.rating ?? 0;
+                const team = p.ratingTeam ?? 0;
+                const unranked = p.ratingUnranked ?? 0;
 
                 return (
                   <button
@@ -299,14 +307,31 @@ function LivePageInner() {
                         )}
                       </div>
                     </div>
-                    <div className="text-right shrink-0">
-                      {p.rating > 0 ? (
-                        <div className="text-lg font-bold text-aoe-accent">{p.rating}</div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      {solo === 0 && team === 0 && unranked > 0 ? (
+                        <div className="text-right">
+                          <div className="text-lg font-bold text-gray-400">{unranked}</div>
+                          <div className="text-[10px] text-gray-500 uppercase tracking-wider">
+                            {locale === "es" ? "Sin clasif." : "Unranked"}
+                          </div>
+                        </div>
                       ) : (
-                        <div className="text-sm text-gray-600">—</div>
-                      )}
-                      {p.rank > 0 && (
-                        <div className="text-xs text-gray-500">#{p.rank}</div>
+                        <>
+                          <div className="text-right">
+                            <div className={cn("text-lg font-bold", solo > 0 ? "text-aoe-accent" : "text-gray-600")}>
+                              {solo || "—"}
+                            </div>
+                            <div className="text-[10px] text-gray-500 uppercase tracking-wider">1v1</div>
+                          </div>
+                          <div className="text-right">
+                            <div className={cn("text-lg font-bold", team > 0 ? "text-aoe-accent" : "text-gray-600")}>
+                              {team || "—"}
+                            </div>
+                            <div className="text-[10px] text-gray-500 uppercase tracking-wider">
+                              {locale === "es" ? "Equipo" : "Team"}
+                            </div>
+                          </div>
+                        </>
                       )}
                     </div>
                   </button>
@@ -328,7 +353,12 @@ function LivePageInner() {
       {/* Scout data */}
       {!scoutLoading && scoutData && (
         <div className="space-y-6 animate-in fade-in duration-500">
-          <ProfileHeader profile={scoutData.profile} d={d} />
+          <ProfileHeader
+            profile={scoutData.profile}
+            d={d}
+            locale={locale}
+            activeLadder={scoutData.leaderboardUsed}
+          />
           {scoutData.tacticalBriefing && (
             <TacticalBriefingCard
               briefing={scoutData.tacticalBriefing}
@@ -428,7 +458,17 @@ function LivePageInner() {
 
 /* ─── Profile Header ─── */
 
-function ProfileHeader({ profile, d }: { profile: ScoutProfile; d: Record<string, string> }) {
+function ProfileHeader({
+  profile,
+  d,
+  locale,
+  activeLadder,
+}: {
+  profile: ScoutProfile;
+  d: Record<string, string>;
+  locale: string;
+  activeLadder?: string | null;
+}) {
   const total = profile.wins + profile.losses;
   const wr = total > 0 ? ((profile.wins / total) * 100).toFixed(1) : "0";
 
@@ -459,20 +499,14 @@ function ProfileHeader({ profile, d }: { profile: ScoutProfile; d: Record<string
               </span>
             )}
             <span className="flex items-center gap-1">
-              <Shield className="w-3.5 h-3.5" /> #{profile.rank}
-            </span>
-            <span className="flex items-center gap-1">
               <Crown className="w-3.5 h-3.5 text-yellow-500" />
               {d.highest}: {profile.highestRating}
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-6 md:gap-8">
-          <div className="text-center">
-            <div className="text-4xl font-bold text-aoe-accent">{profile.rating}</div>
-            <div className="text-xs text-gray-500 uppercase tracking-wider mt-0.5">ELO</div>
-          </div>
+        <div className="flex items-center gap-6 md:gap-8 flex-wrap">
+          <LadderRatingsBlock source={profile} locale={locale} activeLadder={activeLadder} />
           <div className="w-px h-12 bg-aoe-border hidden md:block" />
           <div className="text-center">
             <div className="text-lg font-semibold text-white">

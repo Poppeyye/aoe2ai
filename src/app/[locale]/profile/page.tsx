@@ -26,6 +26,7 @@ import {
 } from "@/lib/aoe2/lobby";
 import { PlaystyleBadge, RatingSparkline, formatRelativeTime } from "@/components/scout/OpponentExtras";
 import TacticalBriefingCard from "@/components/scout/TacticalBriefingCard";
+import { InlineLadderRatings, type LadderRatingSource } from "@/components/scout/LadderRatings";
 import LiveMatchCopilot from "@/components/scout/LiveMatchCopilot";
 import type { TacticalBriefing } from "@/lib/scout/opponent";
 
@@ -39,6 +40,9 @@ interface PlayerSuggestion {
   profileId: number;
   name: string;
   rating: number;
+  ratingSolo?: number;
+  ratingTeam?: number;
+  ratingUnranked?: number;
   rank: number;
   wins: number;
   losses: number;
@@ -167,21 +171,6 @@ function getMatchParticipants(match: LiveMatch, myId: number) {
   return { mySlot, teammates, opponents, isTeamGame };
 }
 
-function getLeaderboardRating(
-  leaderboards: CompanionLeaderboard[] | undefined,
-  type: ScoutLeaderboard,
-): number | null {
-  const abbrMap: Record<ScoutLeaderboard, string> = {
-    rm_1v1: "RM 1v1",
-    rm_team: "RM Team",
-    ew_1v1: "EW 1v1",
-    ew_team: "EW Team",
-  };
-  const lb = leaderboards?.find(
-    (entry) => entry.abbreviation === abbrMap[type] || entry.leaderboardId === type,
-  );
-  return lb && lb.rating > 0 ? lb.rating : null;
-}
 
 function getScoutLbStats(
   profile: Record<string, unknown> | undefined,
@@ -208,10 +197,36 @@ function getScoutRating(
   return lb && Number(lb.rating) > 0 ? Number(lb.rating) : null;
 }
 
-function formatRating(value: number | null, loading: boolean): string {
-  if (value !== null) return String(value);
-  return loading ? "…" : "—";
+/** Every ladder rating we have for a scouted lobby slot. */
+function getScoutRatings(
+  profileId: number | null,
+  scouts: Array<{ slot: MatchSlot; data: Record<string, unknown> }>,
+): LadderRatingSource | null {
+  if (!profileId) return null;
+  const scout = scouts.find((entry) => slotProfileId(entry.slot) === profileId);
+  const profile = scout?.data.profile as LadderRatingSource | undefined;
+  return profile ?? null;
 }
+
+/** Same shape, built from the linked user's own leaderboard list. */
+function toLadderRatings(
+  leaderboards: CompanionLeaderboard[] | undefined,
+): LadderRatingSource | null {
+  if (!leaderboards?.length) return null;
+  const pick = (type: ScoutLeaderboard, abbr: string) => {
+    const lb = leaderboards.find(
+      (entry) => entry.abbreviation === abbr || entry.leaderboardId === type,
+    );
+    return lb ? { rating: lb.rating, rank: lb.rank, highestRating: lb.maxRating } : null;
+  };
+  return {
+    rm1v1: pick("rm_1v1", "RM 1v1"),
+    rmTeam: pick("rm_team", "RM Team"),
+    ew1v1: pick("ew_1v1", "EW 1v1"),
+    ewTeam: pick("ew_team", "EW Team"),
+  };
+}
+
 
 async function fetchOpponentScout(
   slot: MatchSlot,
@@ -635,6 +650,9 @@ export default function ProfilePage() {
   const rm1v1 = playerStats?.leaderboards?.find(
     (lb) => lb.abbreviation === "RM 1v1" || lb.leaderboardId === "rm_1v1",
   );
+  const rmTeamOwn = playerStats?.leaderboards?.find(
+    (lb) => lb.abbreviation === "RM Team" || lb.leaderboardId === "rm_team",
+  );
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -690,8 +708,18 @@ export default function ProfilePage() {
             </div>
 
             {rm1v1 && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 mt-6">
-                <StatCard label={t.rating} value={String(rm1v1.rating)} icon={<Trophy className="w-4 h-4 text-amber-400" />} />
+              <div className={cn(
+                "grid grid-cols-2 sm:grid-cols-3 gap-3 mt-6",
+                rmTeamOwn ? "lg:grid-cols-7" : "md:grid-cols-6",
+              )}>
+                <StatCard label={`${t.rating} 1v1`} value={String(rm1v1.rating)} icon={<Trophy className="w-4 h-4 text-amber-400" />} />
+                {rmTeamOwn && (
+                  <StatCard
+                    label={`${t.rating} ${locale === "es" ? "Equipo" : "Team"}`}
+                    value={String(rmTeamOwn.rating)}
+                    icon={<Trophy className="w-4 h-4 text-amber-400" />}
+                  />
+                )}
                 <StatCard label={t.rank} value={`#${rm1v1.rank}`} icon={<Target className="w-4 h-4 text-blue-400" />} />
                 <StatCard label={t.record} value={`${rm1v1.wins}W / ${rm1v1.losses}L`} icon={<Swords className="w-4 h-4 text-slate-400" />} />
                 <StatCard
@@ -895,6 +923,7 @@ function ProfileLinker({
   linkProfile: (id: number) => void;
   searchRef: React.RefObject<HTMLDivElement>;
 }) {
+  const locale = useLocale();
   const now = Math.floor(Date.now() / 1000);
 
   return (
@@ -937,6 +966,9 @@ function ProfileLinker({
                   const daysSince = p.lastMatchDate && p.lastMatchDate > 0
                     ? Math.floor((now - p.lastMatchDate) / 86400)
                     : null;
+                  const solo = p.ratingSolo ?? p.rating ?? 0;
+                  const team = p.ratingTeam ?? 0;
+                  const unranked = p.ratingUnranked ?? 0;
 
                   return (
                     <button
@@ -974,11 +1006,18 @@ function ProfileLinker({
                         </div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        {p.rating > 0 && (
-                          <span className="text-sm font-bold text-amber-400">{p.rating}</span>
+                        {solo > 0 && (
+                          <span className="text-sm font-bold text-amber-400">1v1 {solo}</span>
                         )}
-                        {p.rank > 0 && (
-                          <span className="text-xs text-slate-500">#{p.rank}</span>
+                        {team > 0 && (
+                          <span className="text-sm font-bold text-amber-400">
+                            {locale === "es" ? "Equipo" : "Team"} {team}
+                          </span>
+                        )}
+                        {solo === 0 && team === 0 && unranked > 0 && (
+                          <span className="text-sm font-bold text-slate-400">
+                            {locale === "es" ? "Sin clasif." : "Unranked"} {unranked}
+                          </span>
                         )}
                         {linking ? (
                           <Loader2 className="w-4 h-4 text-amber-500 animate-spin" />
@@ -1001,14 +1040,18 @@ function ProfileLinker({
 function MatchPlayerLine({
   slot,
   name,
-  rating,
+  ratings,
+  locale,
+  activeLadder,
   hideCivs,
   ratingLoading,
   highlight,
 }: {
   slot: MatchSlot | null;
   name: string;
-  rating: number | null;
+  ratings: LadderRatingSource | null;
+  locale: string;
+  activeLadder?: string | null;
   hideCivs: boolean;
   ratingLoading?: boolean;
   highlight?: "ally" | "enemy" | "self";
@@ -1038,11 +1081,13 @@ function MatchPlayerLine({
         </div>
         {civName && <div className="text-xs text-slate-400 mt-0.5">{civName}</div>}
       </div>
-      <div className="text-right shrink-0">
-        <div className="text-[10px] text-slate-500 uppercase tracking-wider">ELO</div>
-        <div className="text-lg font-bold text-amber-200 tabular-nums">
-          {formatRating(rating, Boolean(ratingLoading))}
-        </div>
+      <div className="shrink-0">
+        <InlineLadderRatings
+          source={ratings}
+          locale={locale}
+          activeLadder={activeLadder}
+          loading={ratingLoading}
+        />
       </div>
     </div>
   );
@@ -1099,9 +1144,8 @@ function LiveMatchPanel({
     ? inferScoutLeaderboard(liveMatch as unknown as Record<string, unknown>, isTeamGame)
     : "rm_1v1";
   const isEwMatch = scoutLb.startsWith("ew_");
-  const myRating =
-    getScoutRating(myId ?? null, opponentScouts, scoutLb) ??
-    getLeaderboardRating(playerStats?.leaderboards, scoutLb);
+  const myRatings =
+    getScoutRatings(myId ?? null, opponentScouts) ?? toLadderRatings(playerStats?.leaderboards);
   const lobbySettings = liveMatch ? formatLobbySettings(liveMatch as unknown as Record<string, unknown>, locale) : [];
   const canAnalyze = opponentScouts.length > 0 && !scouting;
   const inLobbyWaiting = liveMatch?.matchSource === "lobby" && allOpponentSlots.length === 0;
@@ -1230,7 +1274,9 @@ function LiveMatchPanel({
                 <MatchPlayerLine
                   slot={mySlot}
                   name={linkedProfile.name || "You"}
-                  rating={myRating}
+                  ratings={myRatings}
+                  locale={locale}
+                  activeLadder={scoutLb}
                   hideCivs={liveMatch.hide_civilizations}
                   ratingLoading={scouting}
                   highlight="self"
@@ -1239,7 +1285,9 @@ function LiveMatchPanel({
                 <MatchPlayerLine
                   slot={allOpponentSlots[0]}
                   name={allOpponentSlots[0]?.name || t.opponent}
-                  rating={getScoutRating(slotProfileId(allOpponentSlots[0]), opponentScouts, scoutLb)}
+                  ratings={getScoutRatings(slotProfileId(allOpponentSlots[0]), opponentScouts)}
+                  locale={locale}
+                  activeLadder={scoutLb}
                   hideCivs={liveMatch.hide_civilizations}
                   ratingLoading={scouting}
                   highlight="enemy"
@@ -1257,7 +1305,9 @@ function LiveMatchPanel({
                   <MatchPlayerLine
                     slot={mySlot}
                     name={linkedProfile.name || "You"}
-                    rating={myRating}
+                    ratings={myRatings}
+                  locale={locale}
+                  activeLadder={scoutLb}
                     hideCivs={liveMatch.hide_civilizations}
                     ratingLoading={scouting}
                     highlight="self"
@@ -1267,7 +1317,9 @@ function LiveMatchPanel({
                       key={slotProfileId(slot) ?? slot.name}
                       slot={slot}
                       name={slot.name || `Player ${slotProfileId(slot)}`}
-                      rating={getScoutRating(slotProfileId(slot), opponentScouts, scoutLb)}
+                      ratings={getScoutRatings(slotProfileId(slot), opponentScouts)}
+                      locale={locale}
+                      activeLadder={scoutLb}
                       hideCivs={liveMatch.hide_civilizations}
                       ratingLoading={scouting}
                       highlight="ally"
@@ -1283,7 +1335,9 @@ function LiveMatchPanel({
                       key={slotProfileId(slot) ?? slot.name}
                       slot={slot}
                       name={slot.name || `Player ${slotProfileId(slot)}`}
-                      rating={getScoutRating(slotProfileId(slot), opponentScouts, scoutLb)}
+                      ratings={getScoutRatings(slotProfileId(slot), opponentScouts)}
+                      locale={locale}
+                      activeLadder={scoutLb}
                       hideCivs={liveMatch.hide_civilizations}
                       ratingLoading={scouting}
                       highlight="enemy"
@@ -1299,7 +1353,9 @@ function LiveMatchPanel({
                 <MatchPlayerLine
                   slot={mySlot}
                   name={linkedProfile.name || "You"}
-                  rating={myRating}
+                  ratings={myRatings}
+                  locale={locale}
+                  activeLadder={scoutLb}
                   hideCivs={liveMatch.hide_civilizations}
                   ratingLoading={scouting}
                   highlight="self"
@@ -1309,7 +1365,9 @@ function LiveMatchPanel({
                     key={slotProfileId(slot) ?? slot.name}
                     slot={slot}
                     name={slot.name || t.opponent}
-                    rating={getScoutRating(slotProfileId(slot), opponentScouts, scoutLb)}
+                    ratings={getScoutRatings(slotProfileId(slot), opponentScouts)}
+                    locale={locale}
+                    activeLadder={scoutLb}
                     hideCivs={liveMatch.hide_civilizations}
                     ratingLoading={scouting}
                     highlight="enemy"

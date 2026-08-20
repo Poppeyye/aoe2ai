@@ -210,12 +210,24 @@ function companionToPlayer(
   const totalGames = Number(profile.games) || 0;
   const lastMatch = lb?.lastMatchTime ? Math.floor(new Date(lb.lastMatchTime).getTime() / 1000) : 0;
 
+  const byKey = (key: string, abbr: string) =>
+    leaderboards?.find((l) => l.leaderboardId === key || l.abbreviation === abbr);
+  const isEw = preferredKey.startsWith("ew_");
+  const soloLb = isEw ? byKey("ew_1v1", "EW 1v1") : byKey("rm_1v1", "RM 1v1");
+  const teamLb = isEw ? byKey("ew_team", "EW Team") : byKey("rm_team", "RM Team");
+  // Players with no ladder placement still have an unranked rating; surface it
+  // separately so it is never mistaken for a ranked ELO.
+  const unrankedLb = byKey("unranked", "UNR");
+
   return {
     profileId: profile.profileId,
     name: profile.name,
     country: profile.country || undefined,
     clan: profile.clan || undefined,
     rating: lb?.rating || 0,
+    ratingSolo: soloLb?.rating || 0,
+    ratingTeam: teamLb?.rating || 0,
+    ratingUnranked: unrankedLb?.rating || 0,
     rank: lb?.rank || 0,
     wins: lb?.wins || 0,
     losses: lb?.losses || 0,
@@ -330,10 +342,21 @@ async function smartSearch(query: string, preferredLb: number): Promise<unknown[
       rating: number; rank: number; wins: number; losses: number;
       streak: number; highestRating: number; lastMatchDate: number;
     }>;
+    // The Relic fallback only carries the queried ladder, so the other slot
+    // stays empty rather than repeating the same number under both labels.
+    const relicIsTeam = preferredLb === 4 || preferredLb === 14;
     for (const p of relic) {
       if (!seen.has(p.profileId)) {
         seen.add(p.profileId);
-        players.push({ ...p, country: p.country || undefined, totalGames: p.wins + p.losses, clan: undefined });
+        players.push({
+          ...p,
+          country: p.country || undefined,
+          totalGames: p.wins + p.losses,
+          clan: undefined,
+          ratingSolo: relicIsTeam ? 0 : p.rating,
+          ratingTeam: relicIsTeam ? p.rating : 0,
+          ratingUnranked: 0,
+        });
       }
     }
   }

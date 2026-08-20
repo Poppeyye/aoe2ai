@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import type { ScoutProfile, CivStat, PlaystyleTag } from "@/lib/scout/opponent";
 import { PlaystyleBadge } from "@/components/scout/OpponentExtras";
+import { cn } from "@/lib/utils";
 
 interface ShareablePlayerCardProps {
   profile: ScoutProfile;
@@ -28,14 +29,19 @@ export default function ShareablePlayerCard({
   const winRate = total > 0 ? ((profile.wins / total) * 100).toFixed(1) : "0";
   const topCivs = civStats.slice(0, 3);
 
+  const solo = profile.rm1v1?.rating || profile.rating || 0;
+  const team = profile.rmTeam?.rating || 0;
+  const teamLabel = locale === "es" ? "Equipo" : "Team";
+  const eloLine = team > 0 ? `1v1 **${solo}** | ${teamLabel} **${team}**` : `1v1 **${solo}**`;
+
   const shareText = locale === "es"
     ? `🛡️ **Ficha Táctica de AoE2.ai — ${profile.name}**\n` +
-      `👑 ELO: **${profile.rating}** (#${profile.rank}) | Winrate: **${winRate}%** (${profile.wins}W / ${profile.losses}L)\n` +
+      `👑 ELO: ${eloLine} | Winrate: **${winRate}%** (${profile.wins}W / ${profile.losses}L)\n` +
       `⚔️ Estilo: **${playstyle || "Versátil"}**\n` +
       `🏰 Top Civs: ${topCivs.map((c) => `${c.civName} (${c.winRate}%)`).join(", ")}\n\n` +
       `Espía a cualquier rival en https://aoe2.ai/live?profileId=${profile.profileId}`
     : `🛡️ **AoE2.ai Tactical Scout Card — ${profile.name}**\n` +
-      `👑 ELO: **${profile.rating}** (#${profile.rank}) | Winrate: **${winRate}%** (${profile.wins}W / ${profile.losses}L)\n` +
+      `👑 ELO: ${eloLine} | Winrate: **${winRate}%** (${profile.wins}W / ${profile.losses}L)\n` +
       `⚔️ Playstyle: **${playstyle || "Flexible"}**\n` +
       `🏰 Top Civs: ${topCivs.map((c) => `${c.civName} (${c.winRate}%)`).join(", ")}\n\n` +
       `Scout any opponent at https://aoe2.ai/live?profileId=${profile.profileId}`;
@@ -118,10 +124,10 @@ export default function ShareablePlayerCard({
         ctx.fillText(value, x + 10, y + 42);
       };
 
-      drawBox(30, 134, 120, 54, "1v1 ELO", String(profile.rating), "#c8aa6e");
-      drawBox(162, 134, 120, 54, "Winrate", `${winRate}%`, "#4ade80");
-      drawBox(294, 134, 120, 54, "Record", `${profile.wins}W / ${profile.losses}L`, "#ffffff");
-      drawBox(426, 134, 144, 54, "Playstyle", playstyle ? playstyle.toUpperCase() : "FLEX", "#38bdf8");
+      drawBox(30, 134, 106, 54, "1v1 ELO", String(solo || "—"), "#c8aa6e");
+      drawBox(148, 134, 106, 54, `${teamLabel} ELO`, String(team || "—"), "#c8aa6e");
+      drawBox(266, 134, 92, 54, "Winrate", `${winRate}%`, "#4ade80");
+      drawBox(370, 134, 200, 54, "Record", `${profile.wins}W / ${profile.losses}L`, "#ffffff");
 
       // Top Civs line
       ctx.fillStyle = "#c8aa6e";
@@ -222,9 +228,24 @@ export default function ShareablePlayerCard({
             </div>
           </div>
 
-          <div className="text-right">
-            <div className="text-3xl font-bold text-aoe-accent tabular-nums">{profile.rating}</div>
-            <div className="text-[10px] uppercase text-gray-500 tracking-wider">1v1 RM ELO</div>
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <div className="text-3xl font-bold text-aoe-accent tabular-nums">{solo || "—"}</div>
+              <div className="text-[10px] uppercase text-gray-500 tracking-wider">1v1 RM ELO</div>
+            </div>
+            <div className="text-right">
+              <div
+                className={cn(
+                  "text-3xl font-bold tabular-nums",
+                  team > 0 ? "text-aoe-accent" : "text-gray-600",
+                )}
+              >
+                {team || "—"}
+              </div>
+              <div className="text-[10px] uppercase text-gray-500 tracking-wider">
+                {teamLabel} RM ELO
+              </div>
+            </div>
           </div>
         </div>
 
