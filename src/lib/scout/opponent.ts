@@ -2,6 +2,7 @@ import {
   fetchCompanionMatches,
   getCompanionProfile,
   searchPlayerCompanion,
+  type CompanionFullProfile,
   type CompanionMatch,
   type CompanionMatchPlayer,
 } from "@/lib/api/relic";
@@ -136,6 +137,8 @@ export interface ScoutReport {
   tacticalBriefing: TacticalBriefing;
   /** False when the Companion match history request failed (rate limit / outage). */
   historyLoaded: boolean;
+  /** Ladder the stats were actually computed from, which can differ from the request. */
+  leaderboardUsed: ScoutLeaderboardType;
 }
 
 const CIV_COUNTERS: Record<string, CivRecommendation[]> = {
@@ -571,6 +574,36 @@ function extractLeaderboardStats(lb: {
   };
 }
 
+const SCOUT_LEADERBOARDS: ScoutLeaderboardType[] = ["rm_1v1", "rm_team", "ew_1v1", "ew_team"];
+
+const LEADERBOARD_LABELS: Record<ScoutLeaderboardType, { en: string; es: string }> = {
+  rm_1v1: { en: "Random Map 1v1", es: "Mapa Aleatorio 1v1" },
+  rm_team: { en: "Random Map Team", es: "Mapa Aleatorio por Equipos" },
+  ew_1v1: { en: "Empire Wars 1v1", es: "Empire Wars 1v1" },
+  ew_team: { en: "Empire Wars Team", es: "Empire Wars por Equipos" },
+};
+
+/** The ladder this player actually plays, when the requested one has no games. */
+function mostPlayedLeaderboard(
+  profile: CompanionFullProfile,
+  exclude: ScoutLeaderboardType,
+): ScoutLeaderboardType | null {
+  let best: ScoutLeaderboardType | null = null;
+  let bestGames = 0;
+
+  for (const lb of profile.leaderboards ?? []) {
+    const id = lb.leaderboardId as ScoutLeaderboardType;
+    if (id === exclude || !SCOUT_LEADERBOARDS.includes(id)) continue;
+    const games = (lb.wins ?? 0) + (lb.losses ?? 0);
+    if (games > bestGames) {
+      best = id;
+      bestGames = games;
+    }
+  }
+
+  return best;
+}
+
 export async function buildScoutReport({
   profileId,
   name,
@@ -598,10 +631,28 @@ export async function buildScoutReport({
     throw new Error("Provide either profileId or name");
   }
 
-  const [companionProfile, matchesResult] = await Promise.all([
+  const [companionProfile, requested] = await Promise.all([
     getCompanionProfile(resolvedProfileId),
     fetchCompanionMatches(resolvedProfileId, leaderboardType, matchPages),
   ]);
+
+  // Pages that scout a player have no ladder selector and always ask for 1v1.
+  // Someone who only plays team games genuinely has no 1v1 history, so fall
+  // back to whichever ladder they actually play instead of reporting nothing.
+  let matchesResult = requested;
+  let leaderboardUsed: ScoutLeaderboardType = leaderboardType;
+
+  if (requested.loaded && requested.matches.length === 0) {
+    const fallback = mostPlayedLeaderboard(companionProfile, leaderboardType);
+    if (fallback) {
+      const alt = await fetchCompanionMatches(resolvedProfileId, fallback, matchPages);
+      if (alt.matches.length > 0) {
+        matchesResult = alt;
+        leaderboardUsed = fallback;
+      }
+    }
+  }
+
   const matches = matchesResult.matches;
 
   const rm1v1Lb = companionProfile.leaderboards?.find(
@@ -659,6 +710,7 @@ export async function buildScoutReport({
     recentForm,
     avgGameDuration,
     playstyle,
+    leaderboardNote: leaderboardUsed === leaderboardType ? null : leaderboardUsed,
   });
 
   return {
@@ -675,6 +727,7 @@ export async function buildScoutReport({
     headToHead,
     tacticalBriefing,
     historyLoaded: matchesResult.loaded,
+    leaderboardUsed,
   };
 }
 
@@ -685,8 +738,10 @@ export function computeTacticalBriefing(params: {
   recentForm: ("W" | "L")[];
   avgGameDuration: number;
   playstyle: PlaystyleTag | null;
+  /** Set when the stats come from a different ladder than the one requested. */
+  leaderboardNote?: ScoutLeaderboardType | null;
 }): TacticalBriefing {
-  const { civStats, mapStats, recentForm, playstyle } = params;
+  const { civStats, mapStats, recentForm, playstyle, leaderboardNote } = params;
   const hasHistory = civStats.length > 0;
   const topCiv = civStats[0]?.civName ?? "";
   const topCivWinRate = civStats[0]?.winRate ?? 0;
@@ -847,6 +902,14 @@ export function computeTacticalBriefing(params: {
         en: "Send your scout early and read their build from their buildings: an early Barracks plus Stable means cavalry pressure, two Archery Ranges means an archer mass, and a quiet base with a fast Town Center means a boom.",
         es: "Manda el explorador pronto y lee su build por sus edificios: Cuartel y Establo temprano significa presión de caballería, dos Galerías de Tiro significa masa de arqueros, y una base tranquila con Centro Urbano rápido significa boom.",
       },
+    };
+  }
+
+  if (hasHistory && leaderboardNote) {
+    const label = LEADERBOARD_LABELS[leaderboardNote];
+    profileDetail = {
+      en: `${profileDetail.en} Based on their ${label.en} games — they have no games on the requested ladder.`,
+      es: `${profileDetail.es} Basado en sus partidas de ${label.es}, ya que no tiene partidas en el ladder consultado.`,
     };
   }
 

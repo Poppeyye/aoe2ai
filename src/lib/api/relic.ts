@@ -156,6 +156,13 @@ export interface CompanionFullProfile extends CompanionProfile {
   countryName?: string;
 }
 
+import {
+  blockQueueFor,
+  rateLimitCooldownMs,
+  recordRateLimitHeaders,
+  scheduleCompanionRequest,
+} from "./companion-throttle";
+
 const COMPANION_BASE = "https://data.aoe2companion.com";
 const COMPANION_HEADERS = {
   Accept: "application/json",
@@ -165,38 +172,84 @@ const COMPANION_HEADERS = {
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * The Companion API rate-limits bursts (a lobby scout fires one request per slot),
- * so retry 429s and 5xx before giving up.
+ * Scouting the same player repeatedly is the norm — a lobby is re-scouted on
+ * every change, and popular profiles are opened by many visitors. Caching
+ * responses keeps that off the rate-limit budget entirely.
  */
-async function companionFetch(url: string, revalidate: number): Promise<Response> {
+const responseCache = new Map<string, { expires: number; body: unknown }>();
+const CACHE_MAX_ENTRIES = 500;
+
+function readCache(url: string): unknown | undefined {
+  const hit = responseCache.get(url);
+  if (!hit) return undefined;
+  if (hit.expires < Date.now()) {
+    responseCache.delete(url);
+    return undefined;
+  }
+  return hit.body;
+}
+
+function writeCache(url: string, body: unknown, ttlMs: number): void {
+  if (responseCache.size >= CACHE_MAX_ENTRIES) {
+    // Cheap eviction: drop the oldest inserted key.
+    const oldest = responseCache.keys().next().value;
+    if (oldest) responseCache.delete(oldest);
+  }
+  responseCache.set(url, { expires: Date.now() + ttlMs, body });
+}
+
+/**
+ * Every Companion call goes through here: served from cache when possible,
+ * otherwise queued behind the shared rate-limit budget and retried on 429/5xx
+ * using the server's own reset hint.
+ */
+async function companionJson<T>(url: string, ttlSeconds: number): Promise<T> {
+  const cached = readCache(url);
+  if (cached !== undefined) return cached as T;
+
   let lastStatus = 0;
 
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const res = await fetch(url, { headers: COMPANION_HEADERS, next: { revalidate } });
-      if (res.ok) return res;
+      const res = await scheduleCompanionRequest(() =>
+        fetch(url, { headers: COMPANION_HEADERS, cache: "no-store" }),
+      );
+      recordRateLimitHeaders(res);
+
+      if (res.ok) {
+        const body = (await res.json()) as T;
+        writeCache(url, body, ttlSeconds * 1000);
+        return body;
+      }
+
       lastStatus = res.status;
-      if (res.status !== 429 && res.status < 500) break;
+
+      if (res.status === 429) {
+        const cooldown = rateLimitCooldownMs(res);
+        blockQueueFor(cooldown);
+        if (attempt < 2) await sleep(cooldown);
+        continue;
+      }
+
+      if (res.status < 500) break;
     } catch {
       lastStatus = 0;
     }
-    if (attempt < 2) await sleep(300 * (attempt + 1));
+    if (attempt < 2) await sleep(500 * (attempt + 1));
   }
 
   throw new Error(`Companion API error: ${lastStatus || "network"}`);
 }
 
 export async function searchPlayerCompanion(query: string): Promise<CompanionSearchResult> {
-  const res = await companionFetch(
+  return companionJson<CompanionSearchResult>(
     `${COMPANION_BASE}/api/profiles?search=${encodeURIComponent(query)}`,
     60,
   );
-  return res.json();
 }
 
 export async function getCompanionProfile(profileId: number): Promise<CompanionFullProfile> {
-  const res = await companionFetch(`${COMPANION_BASE}/api/profiles/${profileId}`, 60);
-  return res.json();
+  return companionJson<CompanionFullProfile>(`${COMPANION_BASE}/api/profiles/${profileId}`, 120);
 }
 
 // ── Companion Matches API (richer data, filtered by mode) ──
@@ -242,11 +295,10 @@ async function fetchMatchPage(
   try {
     // The filter param is `leaderboard_ids` (plural). The singular form is
     // silently ignored and returns every mode, unranked lobbies included.
-    const res = await companionFetch(
+    return await companionJson<CompanionMatchesResponse>(
       `${COMPANION_BASE}/api/matches?profile_ids=${profileId}&leaderboard_ids=${encodeURIComponent(leaderboardId)}&count=20&page=${page}`,
-      120,
+      180,
     );
-    return (await res.json()) as CompanionMatchesResponse;
   } catch {
     return null;
   }

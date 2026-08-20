@@ -50,7 +50,9 @@ export async function GET(req: NextRequest) {
     }
 
     const pagesParam = params.get("pages");
-    const matchPages = pagesParam ? Math.min(Math.max(parseInt(pagesParam, 10) || 2, 1), 5) : 5;
+    // Each page is one request against a shared Companion rate-limit budget.
+    // 3 pages (60 matches) is already plenty for stable civ/map stats.
+    const matchPages = pagesParam ? Math.min(Math.max(parseInt(pagesParam, 10) || 2, 1), 5) : 3;
 
     const scoutReport = await buildScoutReport({
       profileId,

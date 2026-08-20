@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
 
       const [companionProfile, companionMatches] = await Promise.all([
         getCompanionProfile(pid).catch(() => null),
-        getCompanionMatches(pid, type, 5).catch(() => [] as CompanionMatch[]),
+        getCompanionMatches(pid, type, 3).catch(() => [] as CompanionMatch[]),
       ]);
 
       if (!companionProfile) {
@@ -297,7 +297,9 @@ async function smartSearch(query: string, preferredLb: number): Promise<unknown[
     }
   }
 
-  const enrichLimit = Math.min(companionProfiles.length, 25);
+  // Each enrichment is a Companion request competing for a shared rate-limit
+  // budget, so only enrich the results a user actually looks at.
+  const enrichLimit = Math.min(companionProfiles.length, 8);
   const enrichResults = await Promise.allSettled(
     companionProfiles.slice(0, enrichLimit).map((p) => getCompanionProfile(p.profileId))
   );
