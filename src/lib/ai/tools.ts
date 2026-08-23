@@ -11,10 +11,12 @@ import {
 } from "@/lib/api/techtree";
 import { buildScoutReport } from "@/lib/scout/opponent";
 import { searchPlayerCompanion } from "@/lib/api/relic";
+import { calculateDetailedEco, type DetailedEcoCalculationInput } from "@/lib/aoe2/eco-math";
 
 export type AiLocale = "en" | "es";
-export type AiSurface = "agent" | "live" | "replay";
+export type AiSurface = "agent" | "live" | "replay" | "eco";
 export type AiToolName =
+  | "calculate_eco_math"
   | "lookup_player_profiles"
   | "scout_opponent"
   | "get_civilization_details"
@@ -239,27 +241,121 @@ const tools: Record<AiToolName, RegisteredTool> = {
       });
     },
   ),
+  calculate_eco_math: defineTool(
+    "calculate_eco_math",
+    "Calculate precise AoE2 economy math: exact villagers required on food, wood, and gold to sustain continuous military production, factoring in civilization bonuses (e.g. Ethiopians, Britons, Turks, Celts, Franks, Vikings, Slavs, Malians, Mayans, Burgundians, Romans, Portuguese, Aztecs), technologies, and farm reseeding wood costs.",
+    {
+      type: "object",
+      properties: {
+        units: {
+          type: "array",
+          description: "List of unit types to produce and building counts. e.g. [{ unit: 'archer', buildings: 1 }] or [{ unit: 'knight', buildings: 2 }].",
+          items: {
+            type: "object",
+            properties: {
+              unit: {
+                type: "string",
+                description: "Unit name or ID (e.g. 'archer', 'knight', 'scout_cavalry', 'crossbowman', 'skirmisher', 'villager', 'camel_rider', 'mangonel', 'spearman', 'monk', 'eagle_warrior').",
+              },
+              buildings: {
+                type: "number",
+                description: "Number of buildings producing this unit concurrently (default: 1).",
+              },
+            },
+            required: ["unit"],
+          },
+        },
+        civ: {
+          type: "string",
+          description: "Civilization name, e.g. 'Ethiopians', 'Britons', 'Franks', 'Turks', 'Celts', 'Vikings', 'Slavs', 'Malians', 'Mayans', 'Burgundians', 'Khmer', 'Aztecs'.",
+        },
+        age: {
+          type: "string",
+          enum: ["dark", "feudal", "castle", "imperial"],
+          description: "Game Age (dark, feudal, castle, imperial). Default: inferred from unit or castle.",
+        },
+        foodSource: {
+          type: "string",
+          enum: ["farm", "sheep", "hunt", "berries"],
+          description: "Primary food source (default: farm).",
+        },
+        woodTech: {
+          type: "string",
+          enum: ["none", "double_bit_axe", "bow_saw", "two_man_saw"],
+          description: "Wood gathering technology researched.",
+        },
+        goldTech: {
+          type: "string",
+          enum: ["none", "gold_mining", "gold_shaft_mining"],
+          description: "Gold gathering technology researched.",
+        },
+        villagerTech: {
+          type: "string",
+          enum: ["none", "wheelbarrow", "hand_cart"],
+          description: "Town Center villager technology researched.",
+        },
+        farmTech: {
+          type: "string",
+          enum: ["none", "horse_collar", "heavy_plow", "crop_rotation"],
+          description: "Mill farm upgrade researched.",
+        },
+      },
+      required: ["units"],
+      additionalProperties: false,
+    },
+    async (args) => {
+      const unitsRaw = Array.isArray(args.units) ? args.units : [];
+      const civ = typeof args.civ === "string" ? args.civ : undefined;
+      const age = typeof args.age === "string" ? (args.age as any) : undefined;
+      const foodSource = typeof args.foodSource === "string" ? (args.foodSource as any) : undefined;
+      const woodTech = typeof args.woodTech === "string" ? (args.woodTech as any) : undefined;
+      const goldTech = typeof args.goldTech === "string" ? (args.goldTech as any) : undefined;
+      const villagerTech = typeof args.villagerTech === "string" ? (args.villagerTech as any) : undefined;
+      const farmTech = typeof args.farmTech === "string" ? (args.farmTech as any) : undefined;
+
+      const result = calculateDetailedEco({
+        civ,
+        age,
+        units: unitsRaw as any,
+        foodSource,
+        woodTech,
+        goldTech,
+        villagerTech,
+        farmTech,
+      });
+
+      return JSON.stringify(result);
+    },
+  ),
 };
 
 const toolSets: Record<AiSurface, AiToolName[]> = {
   agent: [
+    "calculate_eco_math",
     "lookup_player_profiles",
     "scout_opponent",
     "get_civilization_details",
     "compare_civilizations",
   ],
+  eco: [
+    "calculate_eco_math",
+    "get_civilization_details",
+    "compare_civilizations",
+  ],
   live: [
+    "calculate_eco_math",
     "scout_opponent",
     "get_civilization_details",
     "compare_civilizations",
   ],
   replay: [
+    "calculate_eco_math",
     "get_civilization_details",
     "compare_civilizations",
   ],
 };
 
-const WEB_SEARCH_SURFACES = new Set<AiSurface>(["agent"]);
+const WEB_SEARCH_SURFACES = new Set<AiSurface>(["agent", "eco"]);
 
 export function getToolDefinitions(surface: AiSurface): OpenAI.Responses.Tool[] {
   const defs: OpenAI.Responses.Tool[] = toolSets[surface].map((name) => tools[name].definition);

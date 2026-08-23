@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Calculator,
   Globe,
   Radio,
   ScrollText,
@@ -18,6 +19,11 @@ export interface ToolActivity {
 }
 
 const TOOL_META = {
+  calculate_eco_math: {
+    icon: Calculator,
+    en: "Computing economy & villager macro math",
+    es: "Calculando macroeconomía y distribución de aldeanos",
+  },
   lookup_player_profiles: {
     icon: Users,
     en: "Looking up player profiles",
@@ -56,6 +62,18 @@ function getToolLabel(toolName: string, locale: "en" | "es", args?: Record<strin
 
   if (!args) return base;
 
+  if (toolName === "calculate_eco_math") {
+    const civ = args.civ ? String(args.civ) : "";
+    const units = Array.isArray(args.units)
+      ? (args.units as Array<{ unit?: string; buildings?: number }>)
+          .map((u) => `${u.buildings || 1}x ${u.unit || "unit"}`)
+          .join(", ")
+      : "";
+    if (civ && units) return `${base}: ${civ} (${units})`;
+    if (units) return `${base}: ${units}`;
+    if (civ) return `${base}: ${civ}`;
+    return base;
+  }
   if (toolName === "get_civilization_details" && args.civilization) {
     return `${base}: ${String(args.civilization)}`;
   }

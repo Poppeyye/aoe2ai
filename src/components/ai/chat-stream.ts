@@ -1,4 +1,4 @@
-export type AssistantSurface = "agent" | "live" | "replay";
+export type AssistantSurface = "agent" | "live" | "replay" | "eco";
 export type AssistantLocale = "en" | "es";
 
 export interface StreamPayload {

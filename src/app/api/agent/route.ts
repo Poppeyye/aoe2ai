@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     }
 
     const resolvedLocale = (locale === "es" ? "es" : "en") as AiLocale;
-    const resolvedSurface = (surface === "live" || surface === "replay" ? surface : "agent") as AiSurface;
+    const resolvedSurface = (surface === "live" || surface === "replay" || surface === "eco" ? surface : "agent") as AiSurface;
     if (!stream) {
       const content = resolvedSurface === "agent"
         ? await runAgent(messages, resolvedLocale, context)

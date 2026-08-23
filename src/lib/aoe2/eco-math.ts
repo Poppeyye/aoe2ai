@@ -981,3 +981,667 @@ export const PRESETS: {
     },
   },
 ];
+
+/* -------------------------------------------------------------------------- */
+/* Detailed Multi-Civ Eco Engine for AI Agent & Precise Analytics             */
+/* -------------------------------------------------------------------------- */
+
+export interface DetailedEcoCalculationInput {
+  civ?: string;
+  age?: "dark" | "feudal" | "castle" | "imperial";
+  units: Array<{
+    unit: string;
+    buildings?: number;
+    count?: number;
+  }>;
+  foodSource?: FoodSource;
+  woodTech?: WoodTech;
+  goldTech?: GoldTech;
+  villagerTech?: VillagerTech;
+  farmTech?: FarmTech;
+}
+
+export interface DetailedEcoLineResult {
+  unitId: string;
+  unitName: Bilingual;
+  buildings: number;
+  trainTimeSec: number;
+  baseTrainTimeSec: number;
+  cost: ResourceCost;
+  baseCost: ResourceCost;
+  unitsPerMinute: number;
+  drainPerMinute: ResourceCost;
+}
+
+export interface DetailedEcoCalculationResult {
+  civ: {
+    key: string;
+    name: Bilingual;
+    bonusesApplied: Bilingual[];
+    specialNotes: Bilingual[];
+  };
+  age: "dark" | "feudal" | "castle" | "imperial";
+  lines: DetailedEcoLineResult[];
+  productionDemandPerMinute: ResourceCost;
+  effectiveGatherRatesPerVillager: {
+    food: number;
+    wood: number;
+    gold: number;
+    stone: number;
+  };
+  farmEconomics?: {
+    foodVillagers: number;
+    farmYield: number;
+    reseedIntervalSec: number;
+    reseedWoodPerMinute: number;
+  };
+  totalWoodDemandPerMinute: number;
+  villagersRequired: {
+    food: { exact: number; rounded: number };
+    wood: { exact: number; rounded: number };
+    gold: { exact: number; rounded: number };
+    stone: { exact: number; rounded: number };
+    total: number;
+  };
+  technologiesActive: {
+    foodSource: FoodSource;
+    farmTech: FarmTech;
+    woodTech: WoodTech;
+    goldTech: GoldTech;
+    villagerTech: VillagerTech;
+  };
+  textSummary: Bilingual;
+}
+
+const CIV_NAME_MAP: Record<string, { key: string; name: Bilingual }> = {
+  ethiopians: { key: "ethiopians", name: { en: "Ethiopians", es: "Etíopes" } },
+  etiopes: { key: "ethiopians", name: { en: "Ethiopians", es: "Etíopes" } },
+  etiope: { key: "ethiopians", name: { en: "Ethiopians", es: "Etíopes" } },
+  ethiopian: { key: "ethiopians", name: { en: "Ethiopians", es: "Etíopes" } },
+  britons: { key: "britons", name: { en: "Britons", es: "Británicos" } },
+  britanicos: { key: "britons", name: { en: "Britons", es: "Británicos" } },
+  ingleses: { key: "britons", name: { en: "Britons", es: "Británicos" } },
+  franks: { key: "franks", name: { en: "Franks", es: "Francos" } },
+  francos: { key: "franks", name: { en: "Franks", es: "Francos" } },
+  turks: { key: "turks", name: { en: "Turks", es: "Turcos" } },
+  turcos: { key: "turks", name: { en: "Turks", es: "Turcos" } },
+  celts: { key: "celts", name: { en: "Celts", es: "Celtas" } },
+  celtas: { key: "celts", name: { en: "Celts", es: "Celtas" } },
+  vikings: { key: "vikings", name: { en: "Vikings", es: "Vikingos" } },
+  vikingos: { key: "vikings", name: { en: "Vikings", es: "Vikingos" } },
+  slavs: { key: "slavs", name: { en: "Slavs", es: "Eslavos" } },
+  eslavos: { key: "slavs", name: { en: "Slavs", es: "Eslavos" } },
+  malians: { key: "malians", name: { en: "Malians", es: "Malienses" } },
+  malienses: { key: "malians", name: { en: "Malians", es: "Malienses" } },
+  mali: { key: "malians", name: { en: "Malians", es: "Malienses" } },
+  burgundians: { key: "burgundians", name: { en: "Burgundians", es: "Borgoñones" } },
+  borgonones: { key: "burgundians", name: { en: "Burgundians", es: "Borgoñones" } },
+  borgoñones: { key: "burgundians", name: { en: "Burgundians", es: "Borgoñones" } },
+  khmer: { key: "khmer", name: { en: "Khmer", es: "Jemeres" } },
+  jemeres: { key: "khmer", name: { en: "Khmer", es: "Jemeres" } },
+  aztecs: { key: "aztecs", name: { en: "Aztecs", es: "Aztecas" } },
+  aztecas: { key: "aztecs", name: { en: "Aztecs", es: "Aztecas" } },
+  mayans: { key: "mayans", name: { en: "Mayans", es: "Mayas" } },
+  mayas: { key: "mayans", name: { en: "Mayans", es: "Mayas" } },
+  romans: { key: "romans", name: { en: "Romans", es: "Romanos" } },
+  romanos: { key: "romans", name: { en: "Romans", es: "Romanos" } },
+  portuguese: { key: "portuguese", name: { en: "Portuguese", es: "Portugueses" } },
+  portugueses: { key: "portuguese", name: { en: "Portuguese", es: "Portugueses" } },
+  mongols: { key: "mongols", name: { en: "Mongols", es: "Mongoles" } },
+  mongoles: { key: "mongols", name: { en: "Mongols", es: "Mongoles" } },
+  tatars: { key: "tatars", name: { en: "Tatars", es: "Tártaros" } },
+  tartaros: { key: "tatars", name: { en: "Tatars", es: "Tártaros" } },
+  lithuanians: { key: "lithuanians", name: { en: "Lithuanians", es: "Lituanos" } },
+  lituanos: { key: "lithuanians", name: { en: "Lithuanians", es: "Lituanos" } },
+  poles: { key: "poles", name: { en: "Poles", es: "Polacos" } },
+  polacos: { key: "poles", name: { en: "Poles", es: "Polacos" } },
+  armenians: { key: "armenians", name: { en: "Armenians", es: "Armenios" } },
+  armenios: { key: "armenians", name: { en: "Armenians", es: "Armenios" } },
+  bohemians: { key: "bohemians", name: { en: "Bohemians", es: "Bohemios" } },
+  bohemios: { key: "bohemians", name: { en: "Bohemians", es: "Bohemios" } },
+  koreans: { key: "koreans", name: { en: "Koreans", es: "Coreanos" } },
+  coreanos: { key: "koreans", name: { en: "Koreans", es: "Coreanos" } },
+  huns: { key: "huns", name: { en: "Huns", es: "Hunos" } },
+  hunos: { key: "huns", name: { en: "Huns", es: "Hunos" } },
+  byzantines: { key: "byzantines", name: { en: "Byzantines", es: "Bizantinos" } },
+  bizantinos: { key: "byzantines", name: { en: "Byzantines", es: "Bizantinos" } },
+  chinese: { key: "chinese", name: { en: "Chinese", es: "Chinos" } },
+  chinos: { key: "chinese", name: { en: "Chinese", es: "Chinos" } },
+  persians: { key: "persians", name: { en: "Persians", es: "Persas" } },
+  persas: { key: "persians", name: { en: "Persians", es: "Persas" } },
+  spanish: { key: "spanish", name: { en: "Spanish", es: "Españoles" } },
+  espanoles: { key: "spanish", name: { en: "Spanish", es: "Españoles" } },
+  españoles: { key: "spanish", name: { en: "Spanish", es: "Españoles" } },
+  japanese: { key: "japanese", name: { en: "Japanese", es: "Japoneses" } },
+  japoneses: { key: "japanese", name: { en: "Japanese", es: "Japoneses" } },
+  saracens: { key: "saracens", name: { en: "Saracens", es: "Sarracenos" } },
+  sarracenos: { key: "saracens", name: { en: "Saracens", es: "Sarracenos" } },
+  teutons: { key: "teutons", name: { en: "Teutons", es: "Teutones" } },
+  teutones: { key: "teutons", name: { en: "Teutons", es: "Teutones" } },
+  goths: { key: "goths", name: { en: "Goths", es: "Godos" } },
+  godos: { key: "goths", name: { en: "Goths", es: "Godos" } },
+  vietnamese: { key: "vietnamese", name: { en: "Vietnamese", es: "Vietnamitas" } },
+  vietnamitas: { key: "vietnamese", name: { en: "Vietnamese", es: "Vietnamitas" } },
+  magyars: { key: "magyars", name: { en: "Magyars", es: "Magiares" } },
+  magiares: { key: "magyars", name: { en: "Magyars", es: "Magiares" } },
+  italians: { key: "italians", name: { en: "Italians", es: "Italianos" } },
+  italianos: { key: "italians", name: { en: "Italians", es: "Italianos" } },
+  hindustanis: { key: "hindustanis", name: { en: "Hindustanis", es: "Hindustaníes" } },
+  hindustanies: { key: "hindustanis", name: { en: "Hindustanis", es: "Hindustaníes" } },
+  bengalis: { key: "bengalis", name: { en: "Bengalis", es: "Bengalíes" } },
+  dravidians: { key: "dravidians", name: { en: "Dravidians", es: "Dravídicos" } },
+  gurjaras: { key: "gurjaras", name: { en: "Gurjaras", es: "Gurjaras" } },
+  georgians: { key: "georgians", name: { en: "Georgians", es: "Georgianos" } },
+  bulgarians: { key: "bulgarians", name: { en: "Bulgarians", es: "Búlgaros" } },
+  sicilians: { key: "sicilians", name: { en: "Sicilians", es: "Sicilianos" } },
+  burmese: { key: "burmese", name: { en: "Burmese", es: "Birmanos" } },
+  malay: { key: "malay", name: { en: "Malay", es: "Malayos" } },
+  incas: { key: "incas", name: { en: "Incas", es: "Incas" } },
+  cumans: { key: "cumans", name: { en: "Cumans", es: "Cumanos" } },
+};
+
+const UNIT_ALIAS_MAP: Record<string, string> = {
+  archer: "archer",
+  archers: "archer",
+  arquero: "archer",
+  arqueros: "archer",
+  archery: "archer",
+  crossbow: "crossbowman",
+  crossbowman: "crossbowman",
+  crossbows: "crossbowman",
+  crossbowmen: "crossbowman",
+  ballestero: "crossbowman",
+  ballesteros: "crossbowman",
+  arbalest: "crossbowman",
+  arbalester: "crossbowman",
+  arbalesters: "crossbowman",
+  cavalry_archer: "cavalry_archer",
+  "cavalry archer": "cavalry_archer",
+  "cavalry archers": "cavalry_archer",
+  ca: "cavalry_archer",
+  "arquero a caballo": "cavalry_archer",
+  "arqueros a caballo": "cavalry_archer",
+  skirmisher: "skirmisher",
+  skirmishers: "skirmisher",
+  skirm: "skirmisher",
+  skirms: "skirmisher",
+  guerrillero: "skirmisher",
+  guerrilleros: "skirmisher",
+  knight: "knight",
+  knights: "knight",
+  caballero: "knight",
+  caballeros: "knight",
+  jinete: "knight",
+  jinetes: "knight",
+  paladin: "knight",
+  paladins: "knight",
+  paladines: "knight",
+  scout: "scout_cavalry",
+  scouts: "scout_cavalry",
+  scout_cavalry: "scout_cavalry",
+  explorador: "scout_cavalry",
+  exploradores: "scout_cavalry",
+  hussar: "scout_cavalry",
+  hussars: "scout_cavalry",
+  husar: "scout_cavalry",
+  husares: "scout_cavalry",
+  "light cav": "scout_cavalry",
+  "light cavalry": "scout_cavalry",
+  "caballeria ligera": "scout_cavalry",
+  camel: "camel_rider",
+  camels: "camel_rider",
+  camel_rider: "camel_rider",
+  camellero: "camel_rider",
+  camelleros: "camel_rider",
+  villager: "villager",
+  villagers: "villager",
+  aldeano: "villager",
+  aldeanos: "villager",
+  vills: "villager",
+  tc: "villager",
+  "town center": "villager",
+  spearman: "spearman",
+  spearmen: "spearman",
+  spear: "spearman",
+  lancero: "spearman",
+  lanceros: "spearman",
+  pikeman: "spearman",
+  pikemen: "spearman",
+  piquero: "spearman",
+  piqueros: "spearman",
+  halberdier: "spearman",
+  halberdiers: "spearman",
+  alabardero: "spearman",
+  alabarderos: "spearman",
+  halb: "spearman",
+  halbs: "spearman",
+  militia: "militia_line",
+  man_at_arms: "militia_line",
+  men_at_arms: "militia_line",
+  "hombre de armas": "militia_line",
+  "hombres de armas": "militia_line",
+  swordsman: "militia_line",
+  espadachin: "militia_line",
+  champion: "militia_line",
+  eagle: "eagle_warrior",
+  eagles: "eagle_warrior",
+  eagle_warrior: "eagle_warrior",
+  "guerrero aguila": "eagle_warrior",
+  ram: "battering_ram",
+  rams: "battering_ram",
+  battering_ram: "battering_ram",
+  ariete: "battering_ram",
+  mangonel: "mangonel",
+  mangonels: "mangonel",
+  onager: "mangonel",
+  onagers: "mangonel",
+  onagro: "mangonel",
+  scorpion: "scorpion",
+  scorpions: "scorpion",
+  escorpion: "scorpion",
+  monk: "monk",
+  monks: "monk",
+  monje: "monk",
+  monjes: "monk",
+};
+
+export function resolveCivKeyOrGeneric(input?: string): { key: string; name: Bilingual } {
+  if (!input) return { key: "generic", name: { en: "Generic Civ", es: "Civ Genérica" } };
+  const clean = input.toLowerCase().trim().replace(/[^a-z0-9áéíóúñ]/g, "");
+  return CIV_NAME_MAP[clean] || { key: "generic", name: { en: input, es: input } };
+}
+
+export function resolveUnitId(input: string): string | null {
+  const clean = input.toLowerCase().trim().replace(/[^a-z0-9_]/g, " ");
+  if (UNITS_BY_ID[clean]) return clean;
+  if (UNIT_ALIAS_MAP[clean]) return UNIT_ALIAS_MAP[clean];
+  const words = clean.split(/\s+/);
+  for (const w of words) {
+    if (UNIT_ALIAS_MAP[w]) return UNIT_ALIAS_MAP[w];
+  }
+  return null;
+}
+
+/**
+ * High-precision, civ-aware economy calculation engine for the AI Agent.
+ * Applies exact DE gather rates, tech multipliers, civ discounts, and train times.
+ */
+export function calculateDetailedEco(input: DetailedEcoCalculationInput): DetailedEcoCalculationResult {
+  const civInfo = resolveCivKeyOrGeneric(input.civ);
+  const civKey = civInfo.key;
+  const age = input.age || "castle";
+
+  // Infer default technologies if omitted based on age
+  const woodTech: WoodTech =
+    input.woodTech ||
+    (age === "imperial" ? "two_man_saw" : age === "castle" ? "bow_saw" : age === "feudal" ? "double_bit_axe" : "none");
+  const goldTech: GoldTech =
+    input.goldTech ||
+    (civKey === "bohemians" && (age === "feudal" || age === "castle" || age === "imperial")
+      ? (age === "imperial" || age === "castle" ? "gold_shaft_mining" : "gold_mining")
+      : age === "imperial"
+      ? "gold_shaft_mining"
+      : age === "castle"
+      ? "gold_mining"
+      : "none");
+  const villagerTech: VillagerTech =
+    input.villagerTech ||
+    (civKey === "vikings" && (age === "castle" || age === "imperial")
+      ? "hand_cart"
+      : civKey === "vikings" && age === "feudal"
+      ? "wheelbarrow"
+      : age === "imperial"
+      ? "hand_cart"
+      : age === "castle"
+      ? "wheelbarrow"
+      : "none");
+  const farmTech: FarmTech =
+    input.farmTech ||
+    (civKey === "franks" && age === "imperial"
+      ? "crop_rotation"
+      : civKey === "franks" && age === "castle"
+      ? "heavy_plow"
+      : civKey === "franks" && age === "feudal"
+      ? "horse_collar"
+      : age === "imperial"
+      ? "crop_rotation"
+      : age === "castle"
+      ? "heavy_plow"
+      : age === "feudal"
+      ? "horse_collar"
+      : "none");
+  const foodSource: FoodSource = input.foodSource || (age === "dark" ? "sheep" : "farm");
+
+  const bonusesApplied: Bilingual[] = [];
+  const specialNotes: Bilingual[] = [];
+
+  // 1. Calculate Effective Gather Rates per Villager
+  // Food Rate
+  let baseFoodRate = 20.3;
+  if (foodSource === "sheep") {
+    baseFoodRate = perMin(BASE_WORK_RATE.sheep);
+    if (civKey === "britons") {
+      baseFoodRate = perMin(BASE_WORK_RATE.sheep * 1.25);
+      bonusesApplied.push({
+        en: "Briton Shepherds work 25% faster (24.8 food/min)",
+        es: "Los pastores británicos trabajan 25% más rápido (24.8 comida/min)",
+      });
+    }
+    if (civKey === "tatars") {
+      specialNotes.push({
+        en: "Tatars get +50% food per sheep (150 food each)",
+        es: "Los tártaros obtienen +50% de comida por oveja (150 de comida c/u)",
+      });
+    }
+  } else if (foodSource === "hunt") {
+    baseFoodRate = perMin(BASE_WORK_RATE.hunt);
+    if (civKey === "mongols") {
+      baseFoodRate = perMin(BASE_WORK_RATE.hunt * 1.4);
+      bonusesApplied.push({
+        en: "Mongol Hunters gather 40% faster (34.4 food/min)",
+        es: "Los cazadores mongoles recolectan 40% más rápido (34.4 comida/min)",
+      });
+    }
+  } else if (foodSource === "berries") {
+    baseFoodRate = perMin(BASE_WORK_RATE.berries);
+    if (civKey === "franks") {
+      baseFoodRate = perMin(BASE_WORK_RATE.berries * 1.15);
+      bonusesApplied.push({
+        en: "Frank Foragers work 15% faster (21.4 food/min)",
+        es: "Los recolectores de bayas francos trabajan 15% más rápido (21.4 comida/min)",
+      });
+    }
+  } else {
+    // Farm
+    baseFoodRate =
+      villagerTech === "hand_cart"
+        ? FARM_RATE_PER_MIN.handCart
+        : villagerTech === "wheelbarrow"
+        ? FARM_RATE_PER_MIN.wheelbarrow
+        : FARM_RATE_PER_MIN.none;
+    if (civKey === "slavs") {
+      baseFoodRate = Math.round(baseFoodRate * 1.15 * 10) / 10;
+      bonusesApplied.push({
+        en: "Slav Farmers work 15% faster (+15% farm rate)",
+        es: "Los granjeros eslavos trabajan 15% más rápido (+15% tasa de granja)",
+      });
+    }
+    if (civKey === "vikings" && (age === "feudal" || age === "castle" || age === "imperial")) {
+      bonusesApplied.push({
+        en: "Vikings get free Wheelbarrow & Hand Cart",
+        es: "Los vikingos reciben Carretilla y Carretilla de Mano gratis",
+      });
+    }
+    if (civKey === "franks" && (age === "feudal" || age === "castle" || age === "imperial")) {
+      bonusesApplied.push({
+        en: "Franks get free Farm Upgrades (Horse Collar / Heavy Plow / Crop Rotation)",
+        es: "Los francos reciben mejoras de granja gratis",
+      });
+    }
+  }
+
+  // Wood Rate
+  let woodMult =
+    woodTech === "two_man_saw"
+      ? 1.2 * 1.2 * 1.1
+      : woodTech === "bow_saw"
+      ? 1.2 * 1.2
+      : woodTech === "double_bit_axe"
+      ? 1.2
+      : 1;
+  let woodRate = BASE_WORK_RATE.wood * woodMult;
+  if (civKey === "celts") {
+    woodRate *= 1.15;
+    bonusesApplied.push({
+      en: "Celt Lumberjacks work 15% faster",
+      es: "Los leñadores celtas trabajan 15% más rápido",
+    });
+  }
+  if (civKey === "romans") {
+    woodRate *= 1.05;
+  }
+  const effectiveWoodRate = perMin(woodRate);
+
+  // Gold Rate
+  let goldMult = 1;
+  if (goldTech === "gold_shaft_mining") {
+    goldMult = civKey === "armenians" ? 1.3 * 1.3 : 1.15 * 1.15;
+  } else if (goldTech === "gold_mining") {
+    goldMult = civKey === "armenians" ? 1.3 : 1.15;
+  }
+  let goldRate = BASE_WORK_RATE.gold * goldMult;
+  if (civKey === "turks") {
+    goldRate *= 1.25;
+    bonusesApplied.push({
+      en: "Turk Gold Miners work 25% faster",
+      es: "Los mineros de oro turcos trabajan 25% más rápido",
+    });
+  }
+  if (civKey === "malians") {
+    goldRate *= 1.1;
+    bonusesApplied.push({
+      en: "Malian Gold Miners drop off +10% extra gold",
+      es: "Los mineros malienses entregan +10% de oro extra",
+    });
+  }
+  if (civKey === "romans") {
+    goldRate *= 1.05;
+  }
+  const effectiveGoldRate = perMin(goldRate);
+
+  // Stone Rate
+  let stoneMult = 1;
+  let stoneRate = BASE_WORK_RATE.stone * stoneMult;
+  if (civKey === "romans") {
+    stoneRate *= 1.05;
+    bonusesApplied.push({
+      en: "Roman Villagers gather 5% faster",
+      es: "Los aldeanos romanos recolectan 5% más rápido",
+    });
+  }
+  const effectiveStoneRate = perMin(stoneRate);
+
+  // Special Civ Gifts Notes
+  if (civKey === "ethiopians") {
+    specialNotes.push({
+      en: "Ethiopians receive +100 food & +100 gold upon reaching Feudal, Castle, and Imperial Age (immediate injection to jumpstart production).",
+      es: "Los etíopes reciben +100 de comida y +100 de oro al alcanzar Feudal, Castillos e Imperial (inyección inmediata para arrancar la producción).",
+    });
+    specialNotes.push({
+      en: "Ethiopian Archers fire 18% faster in combat (military attack speed bonus; training time remains standard).",
+      es: "Los arqueros etíopes disparan 18% más rápido en combate (bono de cadencia militar; el tiempo de creación es estándar).",
+    });
+  }
+  if (civKey === "lithuanians") {
+    specialNotes.push({
+      en: "Lithuanians receive +100 food at the start and +100 food for each Town Center built.",
+      es: "Los lituanos reciben +100 de comida inicial y +100 de comida por cada Centro Urbano construido.",
+    });
+  }
+  if (civKey === "dravidians") {
+    specialNotes.push({
+      en: "Dravidians receive +200 wood upon advancing to each Age.",
+      es: "Los dravídicos reciben +200 de madera al avanzar de Edad.",
+    });
+  }
+
+  // 2. Resolve Production Lines
+  const resolvedLines: DetailedEcoLineResult[] = [];
+
+  for (const raw of input.units) {
+    const unitId = resolveUnitId(raw.unit);
+    if (!unitId || !UNITS_BY_ID[unitId]) continue;
+    const baseUnit = UNITS_BY_ID[unitId];
+    const bCount = Math.max(1, raw.buildings || raw.count || 1);
+
+    // Apply Civ Unit Cost Modifiers
+    let costFood = baseUnit.cost.food;
+    let costWood = baseUnit.cost.wood;
+    let costGold = baseUnit.cost.gold;
+
+    if (civKey === "portuguese" && costGold > 0) {
+      costGold = Math.round(costGold * 0.8 * 10) / 10;
+      bonusesApplied.push({
+        en: "Portuguese all units -20% gold cost",
+        es: "Unidades portuguesas cuestan -20% de oro",
+      });
+    }
+    if (civKey === "mayans" && (unitId === "archer" || unitId === "crossbowman")) {
+      const discount = age === "imperial" ? 0.7 : age === "castle" ? 0.8 : 0.9;
+      costWood = Math.round(costWood * discount * 10) / 10;
+      costGold = Math.round(costGold * discount * 10) / 10;
+      bonusesApplied.push({
+        en: `Mayan Archers cost -${Math.round((1 - discount) * 100)}% (${costWood}w / ${costGold}g)`,
+        es: `Arqueros mayas cuestan -${Math.round((1 - discount) * 100)}% (${costWood}m / ${costGold}o)`,
+      });
+    }
+    if (civKey === "koreans" && costWood > 0 && unitId !== "villager") {
+      costWood = Math.round(costWood * 0.8 * 10) / 10;
+      bonusesApplied.push({
+        en: "Korean military units cost -20% wood",
+        es: "Las unidades militares coreanas cuestan -20% de madera",
+      });
+    }
+    if (civKey === "byzantines" && (unitId === "spearman" || unitId === "skirmisher" || unitId === "camel_rider")) {
+      costFood = Math.round(costFood * 0.75 * 10) / 10;
+      costWood = Math.round(costWood * 0.75 * 10) / 10;
+      costGold = Math.round(costGold * 0.75 * 10) / 10;
+      bonusesApplied.push({
+        en: "Byzantine trash & camels cost -25%",
+        es: "Unidades basura y camellos bizantinos cuestan -25%",
+      });
+    }
+
+    // Apply Civ Unit Train Speed Modifiers
+    let trainTime = baseUnit.trainTimeSec;
+    if (civKey === "britons" && (unitId === "archer" || unitId === "crossbowman" || unitId === "skirmisher" || unitId === "cavalry_archer")) {
+      const workRateBoost = age === "imperial" ? 1.3 : age === "castle" ? 1.2 : 1.1;
+      trainTime = Math.round((baseUnit.trainTimeSec / workRateBoost) * 100) / 100;
+      bonusesApplied.push({
+        en: `Briton Archery Ranges work ${Math.round((workRateBoost - 1) * 100)}% faster (${trainTime}s per unit)`,
+        es: `Galerías de tiro británicas trabajan ${Math.round((workRateBoost - 1) * 100)}% más rápido (${trainTime}s por unidad)`,
+      });
+    }
+    if (civKey === "aztecs" && unitId !== "villager") {
+      trainTime = Math.round((baseUnit.trainTimeSec / 1.11) * 100) / 100;
+      bonusesApplied.push({
+        en: `Aztec military units train 11% faster (${trainTime}s per unit)`,
+        es: `Unidades militares aztecas se entrenan 11% más rápido (${trainTime}s por unidad)`,
+      });
+    }
+
+    const unitsPerMin = (60 / trainTime) * bCount;
+    const drainFood = costFood * unitsPerMin;
+    const drainWood = costWood * unitsPerMin;
+    const drainGold = costGold * unitsPerMin;
+
+    resolvedLines.push({
+      unitId,
+      unitName: baseUnit.name,
+      buildings: bCount,
+      trainTimeSec: trainTime,
+      baseTrainTimeSec: baseUnit.trainTimeSec,
+      cost: { food: costFood, wood: costWood, gold: costGold },
+      baseCost: baseUnit.cost,
+      unitsPerMinute: Math.round(unitsPerMin * 100) / 100,
+      drainPerMinute: {
+        food: Math.round(drainFood * 10) / 10,
+        wood: Math.round(drainWood * 10) / 10,
+        gold: Math.round(drainGold * 10) / 10,
+      },
+    });
+  }
+
+  // 3. Aggregate Demands
+  const totalProductionDemand = resolvedLines.reduce<ResourceCost>(
+    (acc, line) => ({
+      food: acc.food + line.drainPerMinute.food,
+      wood: acc.wood + line.drainPerMinute.wood,
+      gold: acc.gold + line.drainPerMinute.gold,
+    }),
+    { food: 0, wood: 0, gold: 0 }
+  );
+
+  const exactFoodVills = totalProductionDemand.food > 0 ? totalProductionDemand.food / baseFoodRate : 0;
+  const foodVillsRounded = Math.ceil(exactFoodVills);
+
+  // Farm reseeding wood math
+  const usesFarms = foodSource === "farm" && foodVillsRounded > 0;
+  const farmYield = FARM_YIELD[farmTech];
+  const reseedIntervalSec = usesFarms ? Math.round((farmYield / baseFoodRate) * 60) : 0;
+  const farmReseedWoodPerMin = usesFarms
+    ? Math.round(foodVillsRounded * (FARM_WOOD_COST * (baseFoodRate / farmYield)) * 10) / 10
+    : 0;
+
+  const totalWoodDemand = totalProductionDemand.wood + farmReseedWoodPerMin;
+  const exactWoodVills = totalWoodDemand > 0 ? totalWoodDemand / effectiveWoodRate : 0;
+  const woodVillsRounded = Math.ceil(exactWoodVills);
+
+  const exactGoldVills = totalProductionDemand.gold > 0 ? totalProductionDemand.gold / effectiveGoldRate : 0;
+  const goldVillsRounded = Math.ceil(exactGoldVills);
+
+  const exactStoneVills = 0;
+  const stoneVillsRounded = 0;
+
+  const totalVills = foodVillsRounded + woodVillsRounded + goldVillsRounded + stoneVillsRounded;
+
+  // Build bilingual text summaries
+  const civDisplayName = civInfo.name;
+  const summaryEn = `To sustain non-stop production with ${civDisplayName.en} (${age.toUpperCase()} Age):
+- Food: ${foodVillsRounded} villagers (${exactFoodVills.toFixed(1)} exact) on ${foodSource} (gather rate: ${baseFoodRate} food/min/vill). Drain: ${totalProductionDemand.food.toFixed(1)} food/min.
+- Wood: ${woodVillsRounded} villagers (${exactWoodVills.toFixed(1)} exact) on lumber (gather rate: ${effectiveWoodRate} wood/min/vill). Total wood demand: ${totalWoodDemand.toFixed(1)} wood/min (includes ${farmReseedWoodPerMin.toFixed(1)} wood/min farm reseeding).
+- Gold: ${goldVillsRounded} villagers (${exactGoldVills.toFixed(1)} exact) on gold (gather rate: ${effectiveGoldRate} gold/min/vill). Drain: ${totalProductionDemand.gold.toFixed(1)} gold/min.
+Total Villagers required: ${totalVills}.`;
+
+  const summaryEs = `Para sostener producción continua con ${civDisplayName.es} (Edad ${age.toUpperCase()}):
+- Alimento: ${foodVillsRounded} aldeanos (${exactFoodVills.toFixed(1)} exactos) en ${foodSource} (tasa: ${baseFoodRate} comida/min/ald). Consumo: ${totalProductionDemand.food.toFixed(1)} comida/min.
+- Madera: ${woodVillsRounded} aldeanos (${exactWoodVills.toFixed(1)} exactos) en madera (tasa: ${effectiveWoodRate} madera/min/ald). Demanda total de madera: ${totalWoodDemand.toFixed(1)} madera/min (incluye ${farmReseedWoodPerMin.toFixed(1)} madera/min para resembrar granjas).
+- Oro: ${goldVillsRounded} aldeanos (${exactGoldVills.toFixed(1)} exactos) en oro (tasa: ${effectiveGoldRate} oro/min/ald). Consumo: ${totalProductionDemand.gold.toFixed(1)} oro/min.
+Total de Aldeanos necesarios: ${totalVills}.`;
+
+  return {
+    civ: {
+      key: civKey,
+      name: civDisplayName,
+      bonusesApplied,
+      specialNotes,
+    },
+    age,
+    lines: resolvedLines,
+    productionDemandPerMinute: totalProductionDemand,
+    effectiveGatherRatesPerVillager: {
+      food: baseFoodRate,
+      wood: effectiveWoodRate,
+      gold: effectiveGoldRate,
+      stone: effectiveStoneRate,
+    },
+    farmEconomics: usesFarms
+      ? {
+          foodVillagers: foodVillsRounded,
+          farmYield,
+          reseedIntervalSec,
+          reseedWoodPerMinute: farmReseedWoodPerMin,
+        }
+      : undefined,
+    totalWoodDemandPerMinute: Math.round(totalWoodDemand * 10) / 10,
+    villagersRequired: {
+      food: { exact: Math.round(exactFoodVills * 100) / 100, rounded: foodVillsRounded },
+      wood: { exact: Math.round(exactWoodVills * 100) / 100, rounded: woodVillsRounded },
+      gold: { exact: Math.round(exactGoldVills * 100) / 100, rounded: goldVillsRounded },
+      stone: { exact: Math.round(exactStoneVills * 100) / 100, rounded: stoneVillsRounded },
+      total: totalVills,
+    },
+    technologiesActive: {
+      foodSource,
+      farmTech,
+      woodTech,
+      goldTech,
+      villagerTech,
+    },
+    textSummary: {
+      en: summaryEn,
+      es: summaryEs,
+    },
+  };
+}
+

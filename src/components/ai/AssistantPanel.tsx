@@ -10,7 +10,7 @@ import ToolActivityPanel, { type ToolActivity } from "@/components/ai/ToolActivi
 import { readAssistantStream } from "@/components/ai/chat-stream";
 import MarkdownMessage from "@/components/ai/MarkdownMessage";
 
-type AssistantSurface = "agent" | "live" | "replay";
+type AssistantSurface = "agent" | "live" | "replay" | "eco";
 type AssistantLocale = "en" | "es";
 
 interface PanelMessage {
