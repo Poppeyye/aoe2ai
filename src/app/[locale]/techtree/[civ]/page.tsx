@@ -44,8 +44,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       alternates: {
         canonical: `https://aoe2.ai/${locale}/techtree/${slug}`,
         languages: {
-          en: `/en/techtree/${slug}`,
-          es: `/es/techtree/${slug}`,
+          en: `https://aoe2.ai/en/techtree/${slug}`,
+          es: `https://aoe2.ai/es/techtree/${slug}`,
+          "x-default": `https://aoe2.ai/en/techtree/${slug}`,
         },
       },
     };

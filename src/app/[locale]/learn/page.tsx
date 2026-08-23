@@ -14,6 +14,7 @@ import { useDictionary, useLocale } from "@/i18n/I18nProvider";
 import { cn } from "@/lib/utils";
 import FavoriteButton from "@/components/ui/FavoriteButton";
 import { BUILD_ORDERS, type BuildOrderDifficulty } from "@/lib/aoe2/build-orders";
+import JsonLd from "@/components/seo/JsonLd";
 
 const DIFFICULTY_CONFIG: Record<BuildOrderDifficulty, { color: string; icon: typeof Swords }> = {
   beginner: { color: "bg-green-500/20 text-green-400 border-green-500/30", icon: Shield },
@@ -38,8 +39,28 @@ export default function LearnPage() {
     return true;
   });
 
+  const collectionSchema = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name: isEs ? "Build Orders de Age of Empires II" : "Age of Empires II Build Orders",
+    description: isEs
+      ? "Guías paso a paso de órdenes de construcción para Age of Empires II: Definitive Edition."
+      : "Step-by-step build order guides and practice timers for Age of Empires II: Definitive Edition.",
+    url: `https://aoe2.ai/${locale}/learn`,
+    mainEntity: {
+      "@type": "ItemList",
+      itemListElement: BUILD_ORDERS.map((bo, i) => ({
+        "@type": "ListItem",
+        position: i + 1,
+        url: `https://aoe2.ai/${locale}/learn/${bo.id}`,
+        name: isEs ? bo.nameEs : bo.name,
+      })),
+    },
+  };
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
+      <JsonLd data={collectionSchema} />
       <div className="text-center mb-10">
         <h1 className="text-3xl md:text-4xl font-medieval font-bold mb-3">
           <GraduationCap className="inline w-8 h-8 text-aoe-accent mr-2 -mt-1" />

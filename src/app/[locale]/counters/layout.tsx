@@ -21,6 +21,7 @@ export async function generateMetadata({
       languages: {
         en: "https://aoe2.ai/en/counters",
         es: "https://aoe2.ai/es/counters",
+        "x-default": "https://aoe2.ai/en/counters",
       },
     },
     openGraph: {

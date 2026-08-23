@@ -56,6 +56,7 @@ export async function generateMetadata({
       languages: {
         en: `https://aoe2.ai/en/matchups/${slug}`,
         es: `https://aoe2.ai/es/matchups/${slug}`,
+        "x-default": `https://aoe2.ai/en/matchups/${slug}`,
       },
     },
     openGraph: {

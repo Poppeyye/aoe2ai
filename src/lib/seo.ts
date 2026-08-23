@@ -37,8 +37,9 @@ export async function buildPageMetadata(
     alternates: {
       canonical: `https://aoe2.ai/${locale}/${section}`,
       languages: {
-        en: `/en/${section}`,
-        es: `/es/${section}`,
+        en: `https://aoe2.ai/en/${section}`,
+        es: `https://aoe2.ai/es/${section}`,
+        "x-default": `https://aoe2.ai/en/${section}`,
       },
     },
   };

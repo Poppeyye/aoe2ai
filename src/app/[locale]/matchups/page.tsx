@@ -26,6 +26,7 @@ export async function generateMetadata({
       languages: {
         en: "https://aoe2.ai/en/matchups",
         es: "https://aoe2.ai/es/matchups",
+        "x-default": "https://aoe2.ai/en/matchups",
       },
     },
     openGraph: {

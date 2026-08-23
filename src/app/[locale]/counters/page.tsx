@@ -20,6 +20,45 @@ interface UnitSelection {
   quantity: number;
 }
 
+const COUNTER_FAQS = {
+  en: [
+    {
+      q: "What counters Knights and heavy cavalry in AoE2?",
+      a: "Pikemen and Halberdiers are the primary cost-effective counter with massive bonus damage. Camels match their mobility for chasing raids, and Monks with Sanctity can convert expensive knights from 9 range.",
+    },
+    {
+      q: "What counters massed Crossbowmen and Archers?",
+      a: "Elite Skirmishers have high pierce armor and inflict bonus damage against archers. Mangonels/Onagers eliminate clusters in single splash hits, and +2 armor Knights flank effectively in open fields.",
+    },
+    {
+      q: "How many villagers do I need on resources to keep military buildings producing?",
+      a: "For continuous 2-Stable Knight production, you need roughly 12-14 farmers and 14 gold miners. For 2-Range Crossbows, you need 8 lumberjacks and 14 gold miners. Use our macro calculator above for exact numbers.",
+    },
+    {
+      q: "What is the zero-gold 'trash unit' counter triangle?",
+      a: "Pikemen beat Light Cavalry / Hussar; Light Cavalry beats Skirmishers; and Skirmishers beat Pikemen.",
+    },
+  ],
+  es: [
+    {
+      q: "¿Qué contrarresta a los Caballeros y caballería pesada en AoE2?",
+      a: "Los Piqueros y Alabarderos son el counter más barato y eficiente gracias a su daño bonus masivo. Los Camellos igualan su velocidad para interceptar raids, y los Monjes con Santidad convierten jinetes a distancia.",
+    },
+    {
+      q: "¿Qué vence a una masa de Ballesteros y Arqueros?",
+      a: "Los Guerrilleros de Élite tienen alta armadura antiproyectil y daño bonus contra arqueros. Las Mangonelas u Onagros borran grupos compactos de un disparo, y los Jinetes con armadura +2 limpian en campo abierto.",
+    },
+    {
+      q: "¿Cuántos aldeanos necesito en recursos para no parar la producción militar?",
+      a: "Para producir jinetes sin pausa en 2 Establos necesitas unos 12-14 granjeros y 14 mineros de oro. Para 2 Galerías de Ballesteros necesitas 8 leñadores y 14 mineros. Nuestra calculadora arriba te da el desglose exacto.",
+    },
+    {
+      q: "¿Cuál es el triángulo de counters de unidades 'basura' (sin oro)?",
+      a: "Los Piqueros vencen a la Caballería Ligera / Húsar; la Caballería Ligera vence a los Guerrilleros; y los Guerrilleros vencen a los Piqueros.",
+    },
+  ],
+};
+
 const PRESETS = [
   {
     label: { en: "15 Knights + 10 Crossbowmen", es: "15 Caballeros + 10 Ballesteros" },
@@ -124,6 +163,21 @@ export default function CountersPage() {
     setTimeout(() => setCopied(false), 2500);
   };
 
+  const faqItems = isEs ? COUNTER_FAQS.es : COUNTER_FAQS.en;
+
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqItems.map((f) => ({
+      "@type": "Question",
+      name: f.q,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: f.a,
+      },
+    })),
+  };
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       <JsonLd
@@ -137,6 +191,7 @@ export default function CountersPage() {
           url: `https://aoe2.ai/${locale}/counters`,
         }}
       />
+      <JsonLd data={faqSchema} />
 
       {/* Header */}
       <div className="text-center mb-10">
@@ -398,6 +453,38 @@ export default function CountersPage() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* FAQs Section */}
+      <div className="card mt-10">
+        <h2 className="section-title flex items-center gap-2 mb-4">
+          <Shield className="w-5 h-5 text-aoe-accent" />
+          {isEs ? "Preguntas Frecuentes sobre Counters y Combate" : "Counter & Combat FAQs"}
+        </h2>
+        <div className="space-y-3">
+          {faqItems.map((item, i) => (
+            <div key={i} className="p-4 rounded-lg bg-aoe-dark border border-aoe-border/60">
+              <h3 className="text-sm font-semibold text-white mb-1.5 flex items-center gap-2">
+                <Check className="w-4 h-4 text-green-400 shrink-0" />
+                {item.q}
+              </h3>
+              <p className="text-xs text-gray-300 leading-relaxed pl-6">{item.a}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Cross links */}
+      <div className="mt-8 pt-6 border-t border-aoe-border flex flex-wrap gap-3">
+        <Link href={`/${locale}/guides/unit-counters-guide`} className="btn-secondary text-xs">
+          {isEs ? "Guía Completa de Counters" : "Full Unit Counters Guide"}
+        </Link>
+        <Link href={`/${locale}/eco`} className="btn-secondary text-xs">
+          {isEs ? "Calculadora de Economía" : "Economy Calculator"}
+        </Link>
+        <Link href={`/${locale}/matchups`} className="btn-secondary text-xs">
+          {isEs ? "Enfrentamientos de Civilizaciones" : "Civilization Matchups"}
+        </Link>
       </div>
     </div>
   );

@@ -41,8 +41,9 @@ export function generateMetadata({ params }: PageProps): Metadata {
     alternates: {
       canonical: `https://aoe2.ai/${params.locale}/learn/${bo.id}`,
       languages: {
-        en: `/en/learn/${bo.id}`,
-        es: `/es/learn/${bo.id}`,
+        en: `https://aoe2.ai/en/learn/${bo.id}`,
+        es: `https://aoe2.ai/es/learn/${bo.id}`,
+        "x-default": `https://aoe2.ai/en/learn/${bo.id}`,
       },
     },
   };

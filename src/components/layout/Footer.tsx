@@ -58,12 +58,16 @@ export default function Footer() {
 
           <div className="text-center md:text-right space-y-2">
             <div className="flex flex-wrap justify-center md:justify-end gap-3 text-xs text-gray-400 mb-2">
+              <Link href={`/${locale}/guides`} className="hover:text-aoe-accent transition-colors font-medium">
+                {locale === "es" ? "Guías de Estrategia" : "Strategy Guides"}
+              </Link>
+              <span>&bull;</span>
               <Link href={`/${locale}/hub`} className="hover:text-aoe-accent transition-colors">
                 {locale === "es" ? "Creator Hub" : "Creator Hub"}
               </Link>
               <span>&bull;</span>
               <Link href={`/${locale}/counters`} className="hover:text-aoe-accent transition-colors">
-                {locale === "es" ? "Calculadora Counters" : "Counters"}
+                {locale === "es" ? "Counters" : "Counters"}
               </Link>
               <span>&bull;</span>
               <Link href={`/${locale}/eco`} className="hover:text-aoe-accent transition-colors">
@@ -72,10 +76,6 @@ export default function Footer() {
               <span>&bull;</span>
               <Link href={`/${locale}/matchups`} className="hover:text-aoe-accent transition-colors">
                 {locale === "es" ? "Enfrentamientos" : "Matchups"}
-              </Link>
-              <span>&bull;</span>
-              <Link href={`/${locale}/guides/how-to-beat-extreme-ai`} className="hover:text-aoe-accent transition-colors">
-                {locale === "es" ? "Guía IA Extrema" : "Beat Extreme AI"}
               </Link>
             </div>
             <a

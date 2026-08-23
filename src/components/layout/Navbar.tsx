@@ -22,10 +22,11 @@ const PRIMARY_LINKS = [
 ];
 
 const TOOL_LINKS = [
+  { path: "/guides", key: "guides" as const, icon: BookOpen },
   { path: "/counters", key: "counters" as const, icon: Shield },
   { path: "/eco", key: "eco" as const, icon: Calculator },
   { path: "/matchups", key: "matchups" as const, icon: Swords },
-  { path: "/techtree", key: "techtree" as const, icon: BookOpen },
+  { path: "/techtree", key: "techtree" as const, icon: BarChart3 },
   { path: "/hub", key: "hub" as const, icon: Tv },
   { path: "/players", key: "players" as const, icon: Users },
 ];

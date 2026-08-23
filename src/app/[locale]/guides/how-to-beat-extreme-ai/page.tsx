@@ -27,6 +27,7 @@ export async function generateMetadata({
       languages: {
         en: "https://aoe2.ai/en/guides/how-to-beat-extreme-ai",
         es: "https://aoe2.ai/es/guides/how-to-beat-extreme-ai",
+        "x-default": "https://aoe2.ai/en/guides/how-to-beat-extreme-ai",
       },
     },
     openGraph: {
@@ -95,7 +96,7 @@ export default function BeatExtremeAiGuidePage({
           AoE2.ai
         </Link>
         <span>/</span>
-        <Link href={`/${locale}/learn`} className="hover:text-gray-300">
+        <Link href={`/${locale}/guides`} className="hover:text-gray-300">
           {isEs ? "Guías" : "Guides"}
         </Link>
         <span>/</span>
@@ -285,6 +286,49 @@ export default function BeatExtremeAiGuidePage({
               </p>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Related Strategy Guides */}
+      <div className="card mb-10">
+        <h2 className="section-title flex items-center gap-2 mb-4">
+          <BookOpen className="w-5 h-5 text-aoe-accent" />
+          {isEs ? "Más Guías de Estrategia" : "More Strategy Guides"}
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <Link
+            href={`/${locale}/guides/fast-castle-guide`}
+            className="p-3.5 rounded-lg bg-aoe-dark border border-aoe-border hover:border-aoe-accent/50 transition-colors block"
+          >
+            <div className="font-semibold text-white text-xs mb-1">
+              {isEs ? "Guía de Fast Castle" : "Fast Castle Strategy Guide"}
+            </div>
+            <p className="text-[11px] text-gray-400">
+              {isEs ? "Tiempos, transiciones y macro" : "Timings, transitions & macro"}
+            </p>
+          </Link>
+          <Link
+            href={`/${locale}/guides/unit-counters-guide`}
+            className="p-3.5 rounded-lg bg-aoe-dark border border-aoe-border hover:border-aoe-accent/50 transition-colors block"
+          >
+            <div className="font-semibold text-white text-xs mb-1">
+              {isEs ? "Tabla de Counters" : "Unit Counter Matrix"}
+            </div>
+            <p className="text-[11px] text-gray-400">
+              {isEs ? "Piedra-papel-tijera y daño bonus" : "Rock-paper-scissors & bonus damage"}
+            </p>
+          </Link>
+          <Link
+            href={`/${locale}/guides/how-to-climb-elo`}
+            className="p-3.5 rounded-lg bg-aoe-dark border border-aoe-border hover:border-aoe-accent/50 transition-colors block"
+          >
+            <div className="font-semibold text-white text-xs mb-1">
+              {isEs ? "Cómo Subir ELO" : "How to Climb ELO"}
+            </div>
+            <p className="text-[11px] text-gray-400">
+              {isEs ? "De 1000 a 1500+ de rating" : "From 1000 to 1500+ rating"}
+            </p>
+          </Link>
         </div>
       </div>
 
