@@ -131,11 +131,8 @@ export default function EcoPage({ params }: { params: { locale: string } }) {
         </div>
       </header>
 
-      {/* Visual Interactive Planner */}
-      <EcoMathCalculator locale={locale} />
-
-      {/* AI Connected Agent Section */}
-      <section className="mt-14">
+      {/* AI Connected Agent Section (At the beginning) */}
+      <section className="mb-10">
         <AssistantPanel
           surface="eco"
           locale={isEs ? "es" : "en"}
@@ -164,6 +161,17 @@ export default function EcoPage({ params }: { params: { locale: string } }) {
                 "Compare wood gather rate between Celts with Double-Bit Axe and generic civs",
               ]}
         />
+      </section>
+
+      {/* Visual Interactive Planner */}
+      <section className="mb-12">
+        <div className="flex items-center gap-2 mb-4">
+          <Calculator className="w-5 h-5 text-aoe-accent" />
+          <h2 className="text-xl font-medieval font-bold text-white">
+            {isEs ? "Planificador Visual e Interactivo de Producción" : "Visual Interactive Production Planner"}
+          </h2>
+        </div>
+        <EcoMathCalculator locale={locale} />
       </section>
 
       {/* Frequently Asked Questions */}
