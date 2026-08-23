@@ -311,7 +311,7 @@ export default function ProfilePage() {
   const [opponentScouts, setOpponentScouts] = useState<Array<{ slot: MatchSlot; data: Record<string, unknown> }>>([]);
   const [scouting, setScouting] = useState(false);
   const scoutAbortRef = useRef<AbortController | null>(null);
-  const scoutedOpponentIdsRef = useRef<string>("");
+  const scoutedKeyRef = useRef<string>("");
 
   const [aiText, setAiText] = useState("");
   const [aiActivities, setAiActivities] = useState<ToolActivity[]>([]);
@@ -426,47 +426,62 @@ export default function ProfilePage() {
     }
   }
 
-  const startMatchDetection = useCallback(() => {
-    if (!linkedProfile?.profileId || detecting) return;
+  const startMatchDetection = useCallback((force = false) => {
+    if (!linkedProfile?.profileId) return;
+    if (detecting && !force) return;
+
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+    scoutAbortRef.current?.abort();
+    scoutAbortRef.current = null;
 
     setDetecting(true);
     setConnectionState("connecting");
     setLiveMatch(null);
     setOpponentScouts([]);
-    scoutedOpponentIdsRef.current = "";
-    scoutAbortRef.current?.abort();
-    scoutAbortRef.current = null;
+    scoutedKeyRef.current = "";
     setScouting(false);
     setAiText("");
     setAiActivities([]);
-
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-    }
 
     const es = new EventSource(`/api/match-detect?profileId=${linkedProfile.profileId}`);
     eventSourceRef.current = es;
 
     es.addEventListener("status", (e) => {
-      const data = JSON.parse(e.data);
-      if ((data.status === "spectate" || data.status === "lobby") && data.matchid) {
-        setConnectionState("match_found");
-      } else if (data.status === null && !data.matchid) {
-        setConnectionState("connected");
+      try {
+        const data = JSON.parse(e.data);
+        if ((data.status === "spectate" || data.status === "lobby") && data.matchid) {
+          setConnectionState("match_found");
+        } else if (data.status === null && !data.matchid) {
+          setConnectionState("connected");
+        }
+      } catch {
+        // ignore malformed status
       }
     });
 
     es.addEventListener("match", (e) => {
-      const match = JSON.parse(e.data) as LiveMatch;
-      setLiveMatch((prev) => {
-        if (!prev) return match;
-        return {
-          ...prev,
-          ...match,
-          slots: { ...prev.slots, ...match.slots },
-        };
-      });
-      setConnectionState("match_found");
+      try {
+        const match = JSON.parse(e.data) as LiveMatch;
+        setLiveMatch((prev) => {
+          if (!prev || (prev.matchid && match.matchid && prev.matchid !== match.matchid)) {
+            setOpponentScouts([]);
+            setAiText("");
+            setAiActivities([]);
+            return match;
+          }
+          return {
+            ...prev,
+            ...match,
+            slots: { ...prev.slots, ...match.slots },
+          };
+        });
+        setConnectionState("match_found");
+      } catch {
+        // ignore malformed match
+      }
     });
 
     es.addEventListener("ping", () => {
@@ -485,9 +500,9 @@ export default function ProfilePage() {
     es.onopen = () => {
       setConnectionState("connected");
     };
-  }, [linkedProfile, detecting]);
+  }, [linkedProfile?.profileId, detecting]);
 
-  function stopMatchDetection() {
+  const stopMatchDetection = useCallback(() => {
     setDetecting(false);
     setConnectionState("disconnected");
     scoutAbortRef.current?.abort();
@@ -497,25 +512,18 @@ export default function ProfilePage() {
       eventSourceRef.current.close();
       eventSourceRef.current = null;
     }
-  }
+  }, []);
 
-  function resetDetection() {
-    setLiveMatch(null);
-    setOpponentScouts([]);
-    scoutedOpponentIdsRef.current = "";
-    scoutAbortRef.current?.abort();
-    scoutAbortRef.current = null;
-    setScouting(false);
-    setAiText("");
-    setAiActivities([]);
-    setConnectionState("disconnected");
-  }
+  const resetDetection = useCallback(() => {
+    startMatchDetection(true);
+  }, [startMatchDetection]);
 
   useEffect(() => {
     return () => {
       scoutAbortRef.current?.abort();
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
+        eventSourceRef.current = null;
       }
     };
   }, []);
@@ -537,9 +545,10 @@ export default function ProfilePage() {
       .join(",");
 
     if (opponents.length === 0) return;
-    if (opponentIds === scoutedOpponentIdsRef.current) return;
+    const scoutKey = `${liveMatch.matchid || ""}:${opponentIds}`;
+    if (scoutKey === scoutedKeyRef.current) return;
 
-    scoutedOpponentIdsRef.current = opponentIds;
+    scoutedKeyRef.current = scoutKey;
     scoutAbortRef.current?.abort();
     const abortController = new AbortController();
     scoutAbortRef.current = abortController;

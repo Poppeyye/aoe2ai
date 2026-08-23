@@ -245,7 +245,7 @@ export default function LiveMatchCopilot({
   // Matchup configuration state
   const [myCiv, setMyCiv] = useState(initialMyCiv || "Franks");
   const [opponentCiv, setOpponentCiv] = useState(initialOpponentCiv || "Mongols");
-  const [opponentName] = useState(initialOpponentName || "Opponent");
+  const [opponentName, setOpponentName] = useState(initialOpponentName || "Opponent");
   const [mapName, setMapName] = useState(initialMap || "Arabia");
   const [opponentElo, setOpponentElo] = useState(initialOpponentElo || 1250);
   const [opponentPlaystyle, setOpponentPlaystyle] = useState(initialOpponentPlaystyle || "cavalry");
@@ -255,10 +255,11 @@ export default function LiveMatchCopilot({
   useEffect(() => {
     if (initialMyCiv) setMyCiv(initialMyCiv);
     if (initialOpponentCiv) setOpponentCiv(initialOpponentCiv);
+    if (initialOpponentName) setOpponentName(initialOpponentName);
     if (initialMap) setMapName(initialMap);
     if (initialOpponentElo) setOpponentElo(initialOpponentElo);
     if (initialOpponentPlaystyle) setOpponentPlaystyle(initialOpponentPlaystyle);
-  }, [initialMyCiv, initialOpponentCiv, initialMap, initialOpponentElo, initialOpponentPlaystyle]);
+  }, [initialMyCiv, initialOpponentCiv, initialOpponentName, initialMap, initialOpponentElo, initialOpponentPlaystyle]);
 
   // TTS Voice Output state (Natural, steady, human-paced reading)
   const [autoSpeak, setAutoSpeak] = useState(true);

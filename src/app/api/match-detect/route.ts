@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
     }
 
     const ip = getClientIp(req);
-    const { allowed, resetAt } = checkRateLimit(`match-detect:${ip}`, 5, 60_000);
+    const { allowed, resetAt } = checkRateLimit(`match-detect:${ip}`, 20, 60_000);
     if (!allowed) {
       return NextResponse.json(
         { error: "Too many requests. Please wait a moment." },
